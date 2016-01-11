@@ -6,6 +6,7 @@ public class Cutoff : MonoBehaviour {
 
 	public Transform victim;
 	MeshFilter _meshFilter;
+	MeshCollider _collider;
 	public float epslion = 0.0001f;
 
 
@@ -18,6 +19,7 @@ public class Cutoff : MonoBehaviour {
 	void Start()
 	{
 		_meshFilter = victim.gameObject.GetComponent<MeshFilter> ();
+		_collider = victim.gameObject.GetComponent<MeshCollider> ();
 	}
 	
 
@@ -118,6 +120,8 @@ public class Cutoff : MonoBehaviour {
 		newMesh.vertices = newVertices.ToArray();
 		newMesh.triangles = newTriangles.ToArray();
 		_meshFilter.mesh = newMesh;
+
+		_collider.sharedMesh = newMesh;
 
 	}
 
