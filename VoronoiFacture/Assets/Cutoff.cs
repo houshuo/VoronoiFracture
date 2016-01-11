@@ -103,7 +103,7 @@ public class Cutoff : MonoBehaviour {
 				continue;
 			}
 		}
-		List<Vector3> contourVertices = FindContour(newGeneratedVertices, cutPlane);
+		/*List<Vector3> contourVertices = FindContour(newGeneratedVertices, cutPlane);
 		if (contourVertices.Count >= 3) {
 			for (int i = 1; i<contourVertices.Count - 1; i++) {
 				newTriangles.Add (newVertices.Count);
@@ -113,7 +113,7 @@ public class Cutoff : MonoBehaviour {
 				newTriangles.Add (newVertices.Count);
 				newVertices.Add (contourVertices[i+1]);
 			}
-		}
+		}*/
 		Mesh newMesh = new Mesh ();
 		newMesh.vertices = newVertices.ToArray();
 		newMesh.triangles = newTriangles.ToArray();
