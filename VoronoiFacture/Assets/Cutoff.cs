@@ -6,6 +6,7 @@ public class Cutoff : MonoBehaviour {
 
 	public Transform victim;
 	MeshFilter _meshFilter;
+	public float epslion = 0.0001f;
 
 
 	struct VertexInfo{
@@ -45,7 +46,7 @@ public class Cutoff : MonoBehaviour {
 				vertexInfo[j].distanceToPlane = cutPlane.GetDistanceToPoint (aVertex);
 				vertexInfo[j].vertex = aVertex;
 				vertexInfo[j].index = _triangles[3*i+j];
-				if(vertexInfo[j].distanceToPlane >= 0)
+				if(vertexInfo[j].distanceToPlane > epslion)
 				{
 					aPositiveVertexIndex = j;
 					inPositiveHalfSpaceNum++;
@@ -57,45 +58,39 @@ public class Cutoff : MonoBehaviour {
 			}
 			if (inPositiveHalfSpaceNum==3) {
 				//Whole triangle is in positive side, just copy the triangle
-				newTriangles.Add (newVertices.Count);
-				newVertices.Add (vertexInfo [0].vertex);
-				newTriangles.Add (newVertices.Count);
-				newVertices.Add (vertexInfo [1].vertex);
-				newTriangles.Add (newVertices.Count);
-				newVertices.Add (vertexInfo [2].vertex);
+				AddVertex(vertexInfo [0].vertex, ref newVertices, ref newTriangles);
+				AddVertex(vertexInfo [1].vertex, ref newVertices, ref newTriangles);
+				AddVertex(vertexInfo [2].vertex, ref newVertices, ref newTriangles);
+
 
 			} else if (inPositiveHalfSpaceNum==2) {
 
-				Vector3 newVertexOne = FindContactPointOnEdge(vertexInfo [aNegativeVertexIndex], vertexInfo [(aNegativeVertexIndex + 1)%3], cutPlane, ref edgeDict, ref newGeneratedVertices);
-				Vector3 newVertexTwo = FindContactPointOnEdge(vertexInfo [aNegativeVertexIndex], vertexInfo [(aNegativeVertexIndex + 2)%3], cutPlane, ref edgeDict, ref newGeneratedVertices);
+				Vector3 newVertexOne = FindContactPointOnEdge(vertexInfo [aNegativeVertexIndex], vertexInfo [(aNegativeVertexIndex + 1)%3], cutPlane);
+				Vector3 newVertexTwo = FindContactPointOnEdge(vertexInfo [aNegativeVertexIndex], vertexInfo [(aNegativeVertexIndex + 2)%3], cutPlane);
 
-				newTriangles.Add (newVertices.Count);
-				newVertices.Add (newVertexOne);
-				newTriangles.Add (newVertices.Count);
-				newVertices.Add (vertexInfo [(aNegativeVertexIndex+1)%3].vertex);
-				newTriangles.Add (newVertices.Count);
-				newVertices.Add (vertexInfo [(aNegativeVertexIndex+2)%3].vertex);
+				AddNewGeneratedVertex(newVertexOne, ref newGeneratedVertices);
+				AddNewGeneratedVertex(newVertexTwo, ref newGeneratedVertices);
+
+				AddVertex(newVertexOne, ref newVertices, ref newTriangles);
+				AddVertex (vertexInfo [(aNegativeVertexIndex+1)%3].vertex, ref newVertices, ref newTriangles);
+				AddVertex(vertexInfo [(aNegativeVertexIndex+2)%3].vertex, ref newVertices, ref newTriangles);
 
 
-				newTriangles.Add (newVertices.Count);
-				newVertices.Add (newVertexOne);
-				newTriangles.Add (newVertices.Count);
-				newVertices.Add (vertexInfo [(aNegativeVertexIndex+2)%3].vertex);
-				newTriangles.Add (newVertices.Count);
-				newVertices.Add (newVertexTwo);
+				AddVertex(newVertexOne, ref newVertices, ref newTriangles);
+				AddVertex(vertexInfo [(aNegativeVertexIndex+2)%3].vertex, ref newVertices, ref newTriangles);
+				AddVertex(newVertexTwo, ref newVertices, ref newTriangles);
 
 
 			} else if (inPositiveHalfSpaceNum==1) {
-				Vector3 newVertexOne = FindContactPointOnEdge(vertexInfo [aPositiveVertexIndex], vertexInfo [(aPositiveVertexIndex + 1)%3], cutPlane, ref edgeDict, ref newGeneratedVertices);
-				Vector3 newVertexTwo = FindContactPointOnEdge(vertexInfo [aPositiveVertexIndex], vertexInfo [(aPositiveVertexIndex + 2)%3], cutPlane, ref edgeDict, ref newGeneratedVertices);
+				Vector3 newVertexOne = FindContactPointOnEdge(vertexInfo [aPositiveVertexIndex], vertexInfo [(aPositiveVertexIndex + 1)%3], cutPlane);
+				Vector3 newVertexTwo = FindContactPointOnEdge(vertexInfo [aPositiveVertexIndex], vertexInfo [(aPositiveVertexIndex + 2)%3], cutPlane);
+			
+				AddNewGeneratedVertex(newVertexOne, ref newGeneratedVertices);
+				AddNewGeneratedVertex(newVertexTwo, ref newGeneratedVertices);
 
-
-				newTriangles.Add (newVertices.Count);
-				newVertices.Add (vertexInfo [aPositiveVertexIndex].vertex);
-				newTriangles.Add (newVertices.Count);
-				newVertices.Add (newVertexOne);
-				newTriangles.Add (newVertices.Count);
-				newVertices.Add (newVertexTwo);
+				AddVertex(vertexInfo [aPositiveVertexIndex].vertex, ref newVertices, ref newTriangles);
+				AddVertex(newVertexOne, ref newVertices, ref newTriangles);
+				AddVertex(newVertexTwo, ref newVertices, ref newTriangles);
 
 			} else if (inPositiveHalfSpaceNum==0) {
 				//Whole triangle is culled by plane, just ignore this situation
@@ -103,7 +98,10 @@ public class Cutoff : MonoBehaviour {
 			}
 		}
 
+		Debug.Log (newGeneratedVertices.Count.ToString ());
+
 		List<Vector3> contourVertices = FindContour(newGeneratedVertices, cutPlane);
+
 		if (contourVertices.Count >= 3) {
 			for (int i = 1; i<contourVertices.Count - 1; i++) {
 				newTriangles.Add (newVertices.Count);
@@ -114,36 +112,43 @@ public class Cutoff : MonoBehaviour {
 				newVertices.Add (contourVertices[i]);
 			}
 		}
+
+
 		Mesh newMesh = new Mesh ();
 		newMesh.vertices = newVertices.ToArray();
 		newMesh.triangles = newTriangles.ToArray();
-		newMesh.RecalculateNormals ();
 		_meshFilter.mesh = newMesh;
 
 	}
 
-	Vector3 FindContactPointOnEdge(VertexInfo vertexa, VertexInfo vertexb, Plane cutPlane, ref Dictionary<string, Vector3> edgeDict, ref List<Vector3> newGeneratedVertices)
+	void AddVertex(Vector3 vertex, ref List<Vector3> newVertices, ref List<int> newTriangles)
+	{
+		int index = newVertices.FindIndex(v => (v - vertex).magnitude < epslion);
+		if(index != -1)
+		{
+			newTriangles.Add (index);
+		}
+		else
+		{
+			newTriangles.Add (newVertices.Count);
+			newVertices.Add (vertex);
+		}
+	}
+
+	void AddNewGeneratedVertex(Vector3 vertex, ref List<Vector3> newGeneratedVertices)
+	{
+		if (newGeneratedVertices.FindIndex (v => (v - vertex).magnitude < epslion) < 0) {
+			newGeneratedVertices.Add(vertex);
+		}
+	}
+
+	Vector3 FindContactPointOnEdge(VertexInfo vertexa, VertexInfo vertexb, Plane cutPlane)
 	{
 		Vector3 newVertex;
 		float rayDistance;
-		string edgeString;
-		if(vertexa.index >= vertexb.index)
-			edgeString = vertexa.index.ToString() + vertexb.index.ToString();
-		else
-			edgeString = vertexb.index.ToString() + vertexa.index.ToString();
-
-		if(edgeDict.ContainsKey(edgeString))
-		{
-			newVertex = edgeDict[edgeString];
-		}
-		else
-		{
-			Ray aRay = new Ray (vertexa.vertex, vertexb.vertex - vertexa.vertex);
-			cutPlane.Raycast (aRay, out rayDistance);
-			newVertex = aRay.GetPoint (rayDistance);
-			newGeneratedVertices.Add (newVertex);
-			edgeDict.Add(edgeString, newVertex);
-		}
+		Ray aRay = new Ray (vertexa.vertex, vertexb.vertex - vertexa.vertex);
+		cutPlane.Raycast (aRay, out rayDistance);
+		newVertex = aRay.GetPoint (rayDistance);
 		return newVertex;
 	}
 	
@@ -153,27 +158,22 @@ public class Cutoff : MonoBehaviour {
 			return new List<Vector3>();
 		List<Vector3> output = new List<Vector3> ();
 		output.Add (input [0]);
-		for(int i = 0; i < input.Count ; i++) {
+		for(int i = 0; i < input.Count ; i++) 
+		{
 			Vector3 lastContourPoint = output [output.Count - 1];
 			for (int j=0; j<input.Count; j++) 
 			{
-				if((input[j] - lastContourPoint).magnitude == 0)
+				if(input[j] == lastContourPoint)
+				{
 					continue;
+				}
 				if(IsNextContourPoint(lastContourPoint, input[j], input, plane))
 				{
 					output.Add (input [j]);
 					break;
 				}
 			}
-
-			if((output[0] - output[output.Count - 1]).magnitude == 0)
-			{
-
-				return output;
-			}
 		}
-
-
 		return output;
 	}
 
@@ -181,10 +181,11 @@ public class Cutoff : MonoBehaviour {
 	{
 		for (int i = 0; i<input.Count; i++) 
 		{
-			if (Vector3.Dot(plane.normal, Vector3.Cross (currentPoint - lastContourPoint, input[i] - lastContourPoint)) < 0) {
+			//Debug.Log (Vector3.Dot(plane.normal, Vector3.Cross (currentPoint - lastContourPoint, input[i] - lastContourPoint)).ToString());
+			if (Vector3.Dot(plane.normal, Vector3.Cross (currentPoint - lastContourPoint, input[i] - lastContourPoint)) < -1 * epslion) 
+			{
 				return false;
 			}
-			
 		}
 		return true;
 	}
