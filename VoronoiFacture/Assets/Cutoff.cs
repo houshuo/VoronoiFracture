@@ -103,17 +103,18 @@ public class Cutoff : MonoBehaviour {
 				continue;
 			}
 		}
-		/*List<Vector3> contourVertices = FindContour(newGeneratedVertices, cutPlane);
+		List<Vector3> contourVertices = FindContour(newGeneratedVertices, cutPlane);
 		if (contourVertices.Count >= 3) {
+			Debug.Log(contourVertices.Count.ToString());
 			for (int i = 1; i<contourVertices.Count - 1; i++) {
 				newTriangles.Add (newVertices.Count);
 				newVertices.Add (contourVertices[0]);
 				newTriangles.Add (newVertices.Count);
-				newVertices.Add (contourVertices[i]);
-				newTriangles.Add (newVertices.Count);
 				newVertices.Add (contourVertices[i+1]);
+				newTriangles.Add (newVertices.Count);
+				newVertices.Add (contourVertices[i]);
 			}
-		}*/
+		}
 		Mesh newMesh = new Mesh ();
 		newMesh.vertices = newVertices.ToArray();
 		newMesh.triangles = newTriangles.ToArray();
@@ -149,48 +150,44 @@ public class Cutoff : MonoBehaviour {
 	{
 		List<Vector3> output = new List<Vector3> ();
 		output.Add (input [0]);
-		input.RemoveAt (0);
-		while (input.Count > 0) {
+		for(int i = 0; i < input.Count ; i++) {
 			Vector3 lastContourPoint = output [output.Count - 1];
-			for (int i=0; i<input.Count; i++) {
-				bool isOnContour = true;
-				for (int j = 0; j<input.Count; j++) {
-					if (i == j)
-						continue;
-					if((input[i] - input[j]).magnitude < 0.01)
-					{
-						input.RemoveAt (j);
-						continue;
-					}
-					if (Vector3.Dot(plane.normal, Vector3.Cross (input[i] - lastContourPoint, input[j] - lastContourPoint)) < 0) {
-						isOnContour = false;
-						break;
-					}
-					else
-					{
-						if( Vector3.Dot (input[i] - lastContourPoint, input[j] - lastContourPoint) > 0)
-						{
-							if((input[i] - lastContourPoint).magnitude < (input[j] - lastContourPoint).magnitude)
-							{
-								isOnContour = false;
-								break;
-							}
-							else
-							{
-								input.RemoveAt (j);
-								continue;
-							}
-						}
-					}
-				}
-				if (isOnContour) {
-					output.Add (input [i]);
-					input.RemoveAt (i);
+			for (int j=0; j<input.Count; j++) 
+			{
+				if((input[j] - lastContourPoint).magnitude < 0.01)
+					continue;
+				if(IsNextContourPoint(lastContourPoint, input[j], input, plane))
+				{
+					output.Add (input [j]);
 					break;
 				}
 			}
+
+			if((output[0] - output[output.Count - 1]).magnitude < 0.01)
+			{
+
+				return output;
+			}
 		}
+
+
 		return output;
+	}
+
+	bool IsNextContourPoint(Vector3 lastContourPoint, Vector3 currentPoint, List<Vector3> input, Plane plane)
+	{
+		for (int i = 0; i<input.Count; i++) 
+		{
+			if((currentPoint- input[i]).magnitude < 0.01)
+			{
+				continue;
+			}
+			if (Vector3.Dot(plane.normal, Vector3.Cross (currentPoint - lastContourPoint, input[i] - lastContourPoint)) < 0) {
+				return false;
+			}
+			
+		}
+		return true;
 	}
 
 	void OnMouseDown()
