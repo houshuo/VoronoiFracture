@@ -6,9 +6,6 @@ public class Cutoff : MonoBehaviour {
 
 	public Transform victim;
 	MeshFilter _meshFilter;
-	private Mesh _mesh;
-	private int[] _triangles;
-	private Vector3[] _vertices;
 
 
 	struct VertexInfo{
@@ -17,18 +14,20 @@ public class Cutoff : MonoBehaviour {
 		public int index;
 	}
 
-	void Initialize()
+	void Start()
 	{
 		_meshFilter = victim.gameObject.GetComponent<MeshFilter> ();
-		_mesh = _meshFilter.mesh;
-		_triangles = _mesh.triangles;
-		_vertices = _mesh.vertices;
 	}
+	
 
 	public void Cut()
 	{
-		Initialize ();
-		Plane cutPlane = new Plane (transform.forward, transform.position);
+		Mesh _mesh = _meshFilter.mesh;
+		int[] _triangles = _mesh.triangles;
+		Vector3[] _vertices = _mesh.vertices;
+		Vector3 planeNormalInSubspace = victim.InverseTransformDirection (transform.forward);
+		Vector3 planePosInSubspace = victim.InverseTransformPoint (transform.position);
+		Plane cutPlane = new Plane (planeNormalInSubspace, planePosInSubspace);
 		List<Vector3> newVertices = new List<Vector3> ();
 		List<Vector3> newGeneratedVertices = new List<Vector3> ();
 		List<int> newTriangles = new List<int> ();
@@ -103,9 +102,9 @@ public class Cutoff : MonoBehaviour {
 				continue;
 			}
 		}
+
 		List<Vector3> contourVertices = FindContour(newGeneratedVertices, cutPlane);
 		if (contourVertices.Count >= 3) {
-			Debug.Log(contourVertices.Count.ToString());
 			for (int i = 1; i<contourVertices.Count - 1; i++) {
 				newTriangles.Add (newVertices.Count);
 				newVertices.Add (contourVertices[0]);
@@ -118,7 +117,9 @@ public class Cutoff : MonoBehaviour {
 		Mesh newMesh = new Mesh ();
 		newMesh.vertices = newVertices.ToArray();
 		newMesh.triangles = newTriangles.ToArray();
+		newMesh.RecalculateNormals ();
 		_meshFilter.mesh = newMesh;
+
 	}
 
 	Vector3 FindContactPointOnEdge(VertexInfo vertexa, VertexInfo vertexb, Plane cutPlane, ref Dictionary<string, Vector3> edgeDict, ref List<Vector3> newGeneratedVertices)
@@ -126,7 +127,7 @@ public class Cutoff : MonoBehaviour {
 		Vector3 newVertex;
 		float rayDistance;
 		string edgeString;
-		if(vertexa.index > vertexb.index)
+		if(vertexa.index >= vertexb.index)
 			edgeString = vertexa.index.ToString() + vertexb.index.ToString();
 		else
 			edgeString = vertexb.index.ToString() + vertexa.index.ToString();
@@ -137,9 +138,9 @@ public class Cutoff : MonoBehaviour {
 		}
 		else
 		{
-			Ray firstRay = new Ray (vertexa.vertex, vertexb.vertex - vertexa.vertex);
-			cutPlane.Raycast (firstRay, out rayDistance);
-			newVertex = firstRay.GetPoint (rayDistance);
+			Ray aRay = new Ray (vertexa.vertex, vertexb.vertex - vertexa.vertex);
+			cutPlane.Raycast (aRay, out rayDistance);
+			newVertex = aRay.GetPoint (rayDistance);
 			newGeneratedVertices.Add (newVertex);
 			edgeDict.Add(edgeString, newVertex);
 		}
@@ -148,13 +149,15 @@ public class Cutoff : MonoBehaviour {
 	
 	List<Vector3> FindContour(List<Vector3> input, Plane plane)
 	{
+		if(input.Count == 0)
+			return new List<Vector3>();
 		List<Vector3> output = new List<Vector3> ();
 		output.Add (input [0]);
 		for(int i = 0; i < input.Count ; i++) {
 			Vector3 lastContourPoint = output [output.Count - 1];
 			for (int j=0; j<input.Count; j++) 
 			{
-				if((input[j] - lastContourPoint).magnitude < 0.01)
+				if((input[j] - lastContourPoint).magnitude == 0)
 					continue;
 				if(IsNextContourPoint(lastContourPoint, input[j], input, plane))
 				{
@@ -163,7 +166,7 @@ public class Cutoff : MonoBehaviour {
 				}
 			}
 
-			if((output[0] - output[output.Count - 1]).magnitude < 0.01)
+			if((output[0] - output[output.Count - 1]).magnitude == 0)
 			{
 
 				return output;
@@ -178,10 +181,6 @@ public class Cutoff : MonoBehaviour {
 	{
 		for (int i = 0; i<input.Count; i++) 
 		{
-			if((currentPoint- input[i]).magnitude < 0.01)
-			{
-				continue;
-			}
 			if (Vector3.Dot(plane.normal, Vector3.Cross (currentPoint - lastContourPoint, input[i] - lastContourPoint)) < 0) {
 				return false;
 			}
