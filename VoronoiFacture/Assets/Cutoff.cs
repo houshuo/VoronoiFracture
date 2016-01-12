@@ -34,7 +34,6 @@ public class Cutoff : MonoBehaviour {
 		List<Vector3> newVertices = new List<Vector3> ();
 		List<Vector3> newGeneratedVertices = new List<Vector3> ();
 		List<int> newTriangles = new List<int> ();
-		Dictionary<string, Vector3> edgeDict = new Dictionary<string, Vector3> ();
 		for (int i = 0; i*3<_triangles.Length; i++) {
 			//Get vertices and their distance to plane
 			VertexInfo[] vertexInfo = new VertexInfo[3];
@@ -143,10 +142,10 @@ public class Cutoff : MonoBehaviour {
 		return newVertex;
 	}
 	
-	void FindContourMesh(List<Vector3> input, Plane plane, ref List<Vector3> newVertices, ref List<Vector3> newTriangles)
+	void FindContourMesh(List<Vector3> input, Plane plane, ref List<Vector3> newVertices, ref List<int> newTriangles)
 	{
-		if(input.Count == 0)
-			return new List<Vector3>();
+		if (input.Count == 0)
+			return;
 		List<Vector3> contourVertices = new List<Vector3> ();
 		contourVertices.Add (input [0]);
 		for(int i = 0; i < input.Count ; i++) 
@@ -176,7 +175,6 @@ public class Cutoff : MonoBehaviour {
 				newVertices.Add (contourVertices[i]);
 			}
 		}
-		return output;
 	}
 
 	bool IsNextContourPoint(Vector3 lastContourPoint, Vector3 currentPoint, List<Vector3> input, Plane plane)
