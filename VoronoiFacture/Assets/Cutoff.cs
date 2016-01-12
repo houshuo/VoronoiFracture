@@ -100,20 +100,7 @@ public class Cutoff : MonoBehaviour {
 			}
 		}
 
-		Debug.Log (newGeneratedVertices.Count.ToString ());
-
-		List<Vector3> contourVertices = FindContour(newGeneratedVertices, cutPlane);
-
-		if (contourVertices.Count >= 3) {
-			for (int i = 1; i<contourVertices.Count - 1; i++) {
-				newTriangles.Add (newVertices.Count);
-				newVertices.Add (contourVertices[0]);
-				newTriangles.Add (newVertices.Count);
-				newVertices.Add (contourVertices[i+1]);
-				newTriangles.Add (newVertices.Count);
-				newVertices.Add (contourVertices[i]);
-			}
-		}
+		FindContourMesh (newGeneratedVertices, cutPlane, ref newVertices, ref newTriangles);
 
 
 		Mesh newMesh = new Mesh ();
@@ -156,15 +143,15 @@ public class Cutoff : MonoBehaviour {
 		return newVertex;
 	}
 	
-	List<Vector3> FindContour(List<Vector3> input, Plane plane)
+	void FindContourMesh(List<Vector3> input, Plane plane, ref List<Vector3> newVertices, ref List<Vector3> newTriangles)
 	{
 		if(input.Count == 0)
 			return new List<Vector3>();
-		List<Vector3> output = new List<Vector3> ();
-		output.Add (input [0]);
+		List<Vector3> contourVertices = new List<Vector3> ();
+		contourVertices.Add (input [0]);
 		for(int i = 0; i < input.Count ; i++) 
 		{
-			Vector3 lastContourPoint = output [output.Count - 1];
+			Vector3 lastContourPoint = contourVertices [contourVertices.Count - 1];
 			for (int j=0; j<input.Count; j++) 
 			{
 				if(input[j] == lastContourPoint)
@@ -173,9 +160,20 @@ public class Cutoff : MonoBehaviour {
 				}
 				if(IsNextContourPoint(lastContourPoint, input[j], input, plane))
 				{
-					output.Add (input [j]);
+					contourVertices.Add (input [j]);
 					break;
 				}
+			}
+		}
+		
+		if (contourVertices.Count >= 3) {
+			for (int i = 1; i<contourVertices.Count - 1; i++) {
+				newTriangles.Add (newVertices.Count);
+				newVertices.Add (contourVertices[0]);
+				newTriangles.Add (newVertices.Count);
+				newVertices.Add (contourVertices[i+1]);
+				newTriangles.Add (newVertices.Count);
+				newVertices.Add (contourVertices[i]);
 			}
 		}
 		return output;
