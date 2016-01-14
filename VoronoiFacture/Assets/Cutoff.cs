@@ -123,24 +123,18 @@ public class Cutoff : MonoBehaviour {
 				
 			} else if (inPositiveHalfSpaceNum==2) {
 				List<EdgeInfo> crossEdge = new List<EdgeInfo>();
-				foreach(string edgeString in triangle.edges)
-				{
-					EdgeInfo edge = edges[edgeString];
-					if(edge.IsContainVertex(triangle.vertices[aNegativeVertexIndex]))
-					{
-						crossEdge.Add (edge);
-					}
-				}
 
 				for(int k = 0; k < 2; k++)
 				{
-					EdgeInfo edge = crossEdge[k];
+					string edgeString = GetEdgeString(triangle.vertices[aNegativeVertexIndex], triangle.vertices[(aNegativeVertexIndex+1+k)%3]);
+					EdgeInfo edge = edges[edgeString];
 					if(edge.breakVertexIndex == -1)
 					{
 						Vector3 breakPoint = FindContactPointOnEdge(vertices[edge.vertexAIndex], vertices[edge.vertexBIndex], cutPlane);
 						VertexInfo vertex = AddVertex(breakPoint, ref vertices);
 						edge.breakVertexIndex = vertex.index;
 					}
+					crossEdge.Add (edge);
 				}
 
 				VertexInfo[] triangleA = new VertexInfo[3]{vertices[crossEdge[0].breakVertexIndex], 
@@ -161,18 +155,10 @@ public class Cutoff : MonoBehaviour {
 				
 			} else if (inPositiveHalfSpaceNum==1) {
 				List<EdgeInfo> crossEdge = new List<EdgeInfo>();
-				foreach(string edgeString in triangle.edges)
-				{
-					EdgeInfo edge = edges[edgeString];
-					if(edge.IsContainVertex(triangle.vertices[aPositiveVertexIndex]))
-					{
-						crossEdge.Add (edge);
-					}
-				}
-				
 				for(int k = 0; k < 2; k++)
 				{
-					EdgeInfo edge = crossEdge[k];
+					string edgeString = GetEdgeString(triangle.vertices[aPositiveVertexIndex], triangle.vertices[(aPositiveVertexIndex+1+k)%3]);
+					EdgeInfo edge = edges[edgeString];
 
 					if(edge.breakVertexIndex == -1)
 					{
@@ -180,15 +166,16 @@ public class Cutoff : MonoBehaviour {
 						VertexInfo vertex = AddVertex(breakPoint, ref vertices);
 						edge.breakVertexIndex = vertex.index;
 					}
+					crossEdge.Add (edge);
 				}
 
 				VertexInfo[] triangleA = new VertexInfo[3]{vertices[crossEdge[0].breakVertexIndex], 
-					vertices[crossEdge[1].GetOtherPoint(triangle.vertices[aPositiveVertexIndex])], 
-					vertices[crossEdge[0].GetOtherPoint(triangle.vertices[aPositiveVertexIndex])]};
+					vertices[crossEdge[0].GetOtherPoint(triangle.vertices[aPositiveVertexIndex])], 
+					vertices[crossEdge[1].GetOtherPoint(triangle.vertices[aPositiveVertexIndex])]};
 				
 				VertexInfo[] triangleB = new VertexInfo[3]{vertices[crossEdge[0].breakVertexIndex], 
-					vertices[crossEdge[1].breakVertexIndex],
-					vertices[crossEdge[1].GetOtherPoint(triangle.vertices[aPositiveVertexIndex])]};
+					vertices[crossEdge[1].GetOtherPoint(triangle.vertices[aPositiveVertexIndex])],
+					vertices[crossEdge[1].breakVertexIndex]};
 
 				
 				VertexInfo[] triangleC = new VertexInfo[3]{vertices[triangle.vertices[aPositiveVertexIndex]], 
@@ -205,6 +192,8 @@ public class Cutoff : MonoBehaviour {
 			}
 		}
 		//Cut mesh end
+
+		//re-assemble mesh
 		List<Vector3> leftVertices = new List<Vector3> ();
 		Dictionary<int, int> verticeIndexCorrespondingDict = new Dictionary<int, int> ();
 		List<int> leftTriangleIndex = new List<int> ();
@@ -225,6 +214,7 @@ public class Cutoff : MonoBehaviour {
 
 		newMeshLeftFilter.mesh.vertices = leftVertices.ToArray();
 		newMeshLeftFilter.mesh.triangles = leftTriangleIndex.ToArray();
+		newMeshLeftFilter.mesh.RecalculateNormals ();
 		newMeshLeftFilter.mesh.RecalculateNormals ();
 
 		verticeIndexCorrespondingDict.Clear ();
@@ -248,6 +238,7 @@ public class Cutoff : MonoBehaviour {
 		newMeshRightFilter.mesh.vertices = rightVertices.ToArray();
 		newMeshRightFilter.mesh.triangles = rightTriangleIndex.ToArray();
 		newMeshRightFilter.mesh.RecalculateNormals ();
+		newMeshRightFilter.mesh.RecalculateBounds ();
 
 		Destroy (victim.gameObject);
 	}
