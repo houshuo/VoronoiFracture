@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -8,12 +9,25 @@ public class Cutoff : MonoBehaviour {
 	MeshFilter _meshFilter;
 	MeshCollider _collider;
 	public float epslion = 0.0001f;
+	public GameObject newMeshPrefab;
 
 
 	struct VertexInfo{
 		public Vector3 vertex;
-		public float distanceToPlane;
 		public int index;
+		public List<int> belongToTriangleIndex;
+		public List<int> belongToEdgeIndex;
+	}
+
+	struct EdgeInfo{
+		public int vertexAIndex;
+		public int vertexBIndex;
+		public List<int> belongToTriangleIndex;
+	}
+
+	struct TriangleInfo{
+		public int index;
+		public List<int> Vertices;
 	}
 
 	void Start()
@@ -21,83 +35,130 @@ public class Cutoff : MonoBehaviour {
 		_meshFilter = victim.gameObject.GetComponent<MeshFilter> ();
 		_collider = victim.gameObject.GetComponent<MeshCollider> ();
 	}
-	
+
+	private string GetEdgeString(int vertexAIndex, int vertexBIndex)
+	{
+		if (vertexAIndex > vertexBIndex)
+			return vertexAIndex.ToString () + "-" + vertexBIndex.ToString ();
+		else if (vertexBIndex > vertexAIndex)
+			return vertexBIndex.ToString () + "-" + vertexAIndex.ToString ();
+		else
+			return "";
+	}
 
 	public void Cut()
 	{
+		//Get Mesh
 		Mesh _mesh = _meshFilter.mesh;
 		int[] _triangles = _mesh.triangles;
 		Vector3[] _vertices = _mesh.vertices;
+
+		GameObject newMeshLeft = Instantiate (newMeshPrefab, transform.position, transform.rotation);
+		GameObject newMeshRight = Instantiate (newMeshPrefab, transform.position, transform.rotation);
+
+		//Get Cutplane
 		Vector3 planeNormalInSubspace = victim.InverseTransformDirection (transform.forward);
 		Vector3 planePosInSubspace = victim.InverseTransformPoint (transform.position);
 		Plane cutPlane = new Plane (planeNormalInSubspace, planePosInSubspace);
-		List<Vector3> newVertices = new List<Vector3> ();
-		List<Vector3> newGeneratedVertices = new List<Vector3> ();
-		List<int> newTriangles = new List<int> ();
-		for (int i = 0; i*3<_triangles.Length; i++) {
-			//Get vertices and their distance to plane
-			VertexInfo[] vertexInfo = new VertexInfo[3];
 
+		//Get Mesh Info
+		Dictionary<int, VertexInfo> vertices = new Dictionary<int, VertexInfo> ();
+		Dictionary<string, EdgeInfo> edges = new Dictionary<string, EdgeInfo> ();
+		Dictionary<int, TriangleInfo> triangles = new Dictionary<int, TriangleInfo> ();
+		for (int i = 0; i*3<_triangles.Length; i++) {
+			TriangleInfo triangle = new TriangleInfo ();
+			triangle.index = triangles.Count;
+			triangle.Vertices = new List<int> ();
+			triangles.Add (triangle.index, triangle);
+			for (int j = 0; j < 3; j++) {
+				VertexInfo vertex;
+				if (vertices.ContainsKey (_triangles [3 * i + j])) {
+					vertex = vertices [_triangles [3 * i + j]];
+				} else {
+					vertex = new VertexInfo ();
+					vertex.vertex = _vertices [_triangles [3 * i + j]];
+					vertex.index = _triangles [3 * i + j];
+					vertex.belongToTriangleIndex = new List<int> ();
+					vertex.belongToEdgeIndex = new List<int> ();
+					vertices.Add (vertex.index, vertex);
+				}
+				vertex.belongToTriangleIndex.Add (triangle.index);
+				triangle.Vertices.Add (vertex.index);
+
+				int nextVertexIndex = _triangles [3 * i + (j + 1) % 3];
+				string edgeString = GetEdgeString (vertex.index, nextVertexIndex);
+				EdgeInfo edge;
+				if (edges.Contains (edgeString))
+					edge = edges [edgeString];
+				else {
+					edge = new EdgeInfo ();
+					edge.belongToTriangleIndex = new List<int> ();
+					edge.vertexAIndex = _triangles [3 * i + j];
+					edge.vertexBIndex = _triangles [3 * i + (j + 1) % 3];
+					edges.Add (edgeString, edge);
+				}
+				edge.belongToTriangleIndex.Add (triangle.index);
+			}
+		}
+		for(int i = 0; i < triangles.Count; i++)
+		{
 			int inPositiveHalfSpaceNum = 0;
 			int aPositiveVertexIndex = 0;
 			int aNegativeVertexIndex = 0;
-			for (int j = 0; j < 3; j++) {
-				Vector3 aVertex = _vertices [_triangles[3*i+j]];
-				vertexInfo [j] = new VertexInfo();
-				vertexInfo[j].distanceToPlane = cutPlane.GetDistanceToPoint (aVertex);
-				vertexInfo[j].vertex = aVertex;
-				vertexInfo[j].index = _triangles[3*i+j];
-				if(vertexInfo[j].distanceToPlane > epslion)
+			TriangleInfo triangle = triangles[i];
+			for(int j = 0; j < 3; j++)
+			{
+				VertexInfo avertex = vertices[triangle.Vertices[j]];
+				float distanceToPlane = cutPlane.GetDistanceToPoint (avertex.vertex);
+				if(distanceToPlane > 0)
 				{
-					aPositiveVertexIndex = j;
+					aPositiveVertexIndex = avertex.index;
 					inPositiveHalfSpaceNum++;
 				}
 				else
 				{
-					aNegativeVertexIndex = j;
+					aNegativeVertexIndex = avertex.index
 				}
 			}
+
 			if (inPositiveHalfSpaceNum==3) {
-				//Whole triangle is in positive side, just copy the triangle
-				AddVertex(vertexInfo [0].vertex, ref newVertices, ref newTriangles);
-				AddVertex(vertexInfo [1].vertex, ref newVertices, ref newTriangles);
-				AddVertex(vertexInfo [2].vertex, ref newVertices, ref newTriangles);
-
-
+				//Whole triangle is in positive side, just copy the triangle, Do nothing
+				
 			} else if (inPositiveHalfSpaceNum==2) {
-
+				
 				Vector3 newVertexOne = FindContactPointOnEdge(vertexInfo [aNegativeVertexIndex], vertexInfo [(aNegativeVertexIndex + 1)%3], cutPlane);
 				Vector3 newVertexTwo = FindContactPointOnEdge(vertexInfo [aNegativeVertexIndex], vertexInfo [(aNegativeVertexIndex + 2)%3], cutPlane);
-
-				AddNewGeneratedVertex(newVertexOne, ref newGeneratedVertices);
-				AddNewGeneratedVertex(newVertexTwo, ref newGeneratedVertices);
-
+				
 				AddVertex(newVertexOne, ref newVertices, ref newTriangles);
 				AddVertex (vertexInfo [(aNegativeVertexIndex+1)%3].vertex, ref newVertices, ref newTriangles);
 				AddVertex(vertexInfo [(aNegativeVertexIndex+2)%3].vertex, ref newVertices, ref newTriangles);
-
-
+				
+				
 				AddVertex(newVertexOne, ref newVertices, ref newTriangles);
 				AddVertex(vertexInfo [(aNegativeVertexIndex+2)%3].vertex, ref newVertices, ref newTriangles);
 				AddVertex(newVertexTwo, ref newVertices, ref newTriangles);
-
-
+				
+				AddNewGeneratedVertex(newVertexOne, ref newGeneratedVertices);
+				AddNewGeneratedVertex(newVertexTwo, ref newGeneratedVertices);
+				
+				
 			} else if (inPositiveHalfSpaceNum==1) {
 				Vector3 newVertexOne = FindContactPointOnEdge(vertexInfo [aPositiveVertexIndex], vertexInfo [(aPositiveVertexIndex + 1)%3], cutPlane);
 				Vector3 newVertexTwo = FindContactPointOnEdge(vertexInfo [aPositiveVertexIndex], vertexInfo [(aPositiveVertexIndex + 2)%3], cutPlane);
-			
+				
 				AddNewGeneratedVertex(newVertexOne, ref newGeneratedVertices);
 				AddNewGeneratedVertex(newVertexTwo, ref newGeneratedVertices);
-
+				
 				AddVertex(vertexInfo [aPositiveVertexIndex].vertex, ref newVertices, ref newTriangles);
 				AddVertex(newVertexOne, ref newVertices, ref newTriangles);
 				AddVertex(newVertexTwo, ref newVertices, ref newTriangles);
-
+				
 			} else if (inPositiveHalfSpaceNum==0) {
 				//Whole triangle is culled by plane, just ignore this situation
 				continue;
 			}
 		}
+
 
 		FindContourMesh (newGeneratedVertices, cutPlane, ref newVertices, ref newTriangles);
 
@@ -113,7 +174,7 @@ public class Cutoff : MonoBehaviour {
 
 	void AddVertex(Vector3 vertex, ref List<Vector3> newVertices, ref List<int> newTriangles)
 	{
-		int index = newVertices.FindIndex(v => (v - vertex).magnitude < epslion);
+		int index = newVertices.FindIndex(v => v == vertex);
 		if(index != -1)
 		{
 			newTriangles.Add (index);
@@ -212,6 +273,23 @@ public class Cutoff : MonoBehaviour {
 
 		return (point - center).magnitude < radius;
 	}
+
+	/*void FindContourMeshDelaunay(List<Vector3> input, Plane plane, ref List<Vector3> newVertices, ref List<int> newTriangles)
+	{
+		if (input.Count == 0)
+			return;
+		IEnumerable<Vector3> sortedVerticesEnumerator = input.OrderBy(v=>v.x).ThenBy(v => v.z);
+		input = sortedVerticesEnumerator.ToList ();
+		
+		DelaunayDivideAndConquer (input, vertices, ref newVertices, ref );
+	}
+	
+	void DelaunayDivideAndConquer(List<int> input, List<Vector3> vertices, ref List<Vector3> newVertices, ref List<int> newTriangles)
+	{
+		if (input.Count == 3) {
+			
+		}
+	}*/
 	#endregion
 }
 
