@@ -7,7 +7,6 @@ public class Cutoff : MonoBehaviour {
 
 	public Transform victim;
 	MeshFilter _meshFilter;
-	MeshCollider _collider;
 	public float epslion = 0.0001f;
 	public GameObject newMeshPrefab;
 
@@ -50,7 +49,6 @@ public class Cutoff : MonoBehaviour {
 	void Start()
 	{
 		_meshFilter = victim.gameObject.GetComponent<MeshFilter> ();
-		_collider = victim.gameObject.GetComponent<MeshCollider> ();
 	}
 
 	private string GetEdgeString(int vertexAIndex, int vertexBIndex)
@@ -99,6 +97,7 @@ public class Cutoff : MonoBehaviour {
 			AddTriangle(verticesToBeAdd, ref edges, ref triangles);
 		}
 
+		//Cut Mesh
 		for(int i = 0; i < triangles.Count; i++)
 		{
 			int inPositiveHalfSpaceNum = 0;
@@ -198,6 +197,35 @@ public class Cutoff : MonoBehaviour {
 				rightTriangles.Add (triangle);
 			}
 		}
+		//Cut mesh end
+
+		List<int> leftTriangleIndex = new List<int> ();
+		for (int i = 0; i < leftTriangles.Count; i++) {
+			TriangleInfo triangle = leftTriangles[i];
+			foreach(int vIndex in triangle.vertices)
+			{
+				VertexInfo vertexInfo = vertices[vIndex];
+				leftTriangleIndex.Add(vertexInfo.index);
+			}
+		}
+
+		newMeshLeftFilter.mesh.vertices = _vertices;
+		newMeshLeftFilter.mesh.triangles = leftTriangleIndex.ToArray();
+
+		List<int> rightTriangleIndex = new List<int> ();
+		for (int i = 0; i < rightTriangles.Count; i++) {
+			TriangleInfo triangle = rightTriangles[i];
+			foreach(int vIndex in triangle.vertices)
+			{
+				VertexInfo vertexInfo = vertices[vIndex];
+				rightTriangleIndex.Add(vertexInfo.index);
+			}
+		}
+
+		newMeshRightFiter.mesh.vertices = _vertices;
+		newMeshRightFiter.mesh.triangles = rightTriangleIndex.ToArray();
+
+		Destroy (victim);
 	}
 
 	VertexInfo AddVertex(Vector3 pos, ref Dictionary<int, VertexInfo> vertices)
@@ -214,6 +242,8 @@ public class Cutoff : MonoBehaviour {
 	TriangleInfo AddTriangle(VertexInfo[] verticesToAdd, ref Dictionary<string, EdgeInfo> edges, ref Dictionary<int, TriangleInfo> triangles)
 	{
 		TriangleInfo triangle = new TriangleInfo();
+		triangle.vertices = new List<int> ();
+		triangle.edges = new List<string> ();
 		triangle.index = triangles.Count;
 		for (int i = 0; i<3; i++) {
 			verticesToAdd[i].belongToTriangleIndex.Add (triangle.index);
@@ -237,6 +267,8 @@ public class Cutoff : MonoBehaviour {
 		return triangle;
 	}
 
+
+	#region FindContactPoint
 	Vector3 FindContactPointOnEdge(VertexInfo vertexa, VertexInfo vertexb, Plane cutPlane)
 	{
 		Vector3 newVertex;
@@ -294,6 +326,7 @@ public class Cutoff : MonoBehaviour {
 		}
 		return true;
 	}
+	#endregion
 
 	void OnMouseDown()
 	{
