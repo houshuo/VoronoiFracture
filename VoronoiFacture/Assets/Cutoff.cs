@@ -194,5 +194,24 @@ public class Cutoff : MonoBehaviour {
 	{
 		Cut ();
 	}
+
+	#region Delaunay
+	bool IsAPointInsideTrianglesCircumcircle(Vector3 point, Vector3 vertexA, Vector3 vertexB, Vector3 vertexC)
+	{
+		Vector3 edgeAB = vertexA - vertexB;
+		Vector3 edgeBC = vertexB - vertexC;
+		Vector3 edgeCA = vertexC - vertexA;
+		float denominator = 2 * (Vector3.Cross(edgeAB, edgeBC)).magnitude;
+		float radius = edgeAB.magnitude * edgeBC.magnitude * edgeCA.magnitude / denominator;
+
+		float alpha = Vector3.Dot (edgeBC, edgeBC) * Vector3.Dot(edgeAB , -1 * edgeCA) / denominator;
+		float beta = Vector3.Dot (edgeCA, edgeCA) * Vector3.Dot(-1 * edgeAB, edgeBC) / denominator;
+		float gamma = Vector3.Dot(edgeAB, edgeAB) * Vector3.Dot(edgeCA, -1 * edgeBC) / denominator;
+
+		Vector3 center = vertexA * alpha + vertexB * beta + vertexC * gamma;
+
+		return (point - center).magnitude < radius;
+	}
+	#endregion
 }
 
