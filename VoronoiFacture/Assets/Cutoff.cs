@@ -16,18 +16,35 @@ public class Cutoff : MonoBehaviour {
 		public Vector3 vertex;
 		public int index;
 		public List<int> belongToTriangleIndex;
-		public List<int> belongToEdgeIndex;
+		public List<string> belongToEdgeIndex;
 	}
 
 	struct EdgeInfo{
 		public int vertexAIndex;
 		public int vertexBIndex;
 		public List<int> belongToTriangleIndex;
+		public int breakVertexIndex;
+
+		public bool IsContainVertex(int vertexIndex)
+		{
+			return vertexIndex == vertexAIndex || vertexIndex == vertexBIndex;
+		}
+
+		public int GetOtherPoint(int vertexIndex)
+		{
+			if (vertexIndex == vertexAIndex)
+				return vertexBIndex;
+			else if (vertexIndex == vertexBIndex)
+				return vertexAIndex;
+			else
+				return -1;
+		}
 	}
 
 	struct TriangleInfo{
 		public int index;
-		public List<int> Vertices;
+		public List<string> edges;
+		public List<int> vertices;
 	}
 
 	void Start()
@@ -49,12 +66,15 @@ public class Cutoff : MonoBehaviour {
 	public void Cut()
 	{
 		//Get Mesh
-		Mesh _mesh = _meshFilter.mesh;
-		int[] _triangles = _mesh.triangles;
-		Vector3[] _vertices = _mesh.vertices;
 
-		GameObject newMeshLeft = Instantiate (newMeshPrefab, transform.position, transform.rotation);
-		GameObject newMeshRight = Instantiate (newMeshPrefab, transform.position, transform.rotation);
+
+		GameObject newMeshLeft = (GameObject)Instantiate (newMeshPrefab, transform.position, transform.rotation);
+		MeshFilter newMeshLeftFilter = newMeshLeft.GetComponent<MeshFilter> ();
+		List< TriangleInfo> leftTriangles = new List<TriangleInfo>();
+
+		GameObject newMeshRight = (GameObject)Instantiate (newMeshPrefab, transform.position, transform.rotation);
+		MeshFilter newMeshRightFiter = newMeshRight.GetComponent<MeshFilter> ();
+		List<TriangleInfo> rightTriangles = new List<TriangleInfo>();
 
 		//Get Cutplane
 		Vector3 planeNormalInSubspace = victim.InverseTransformDirection (transform.forward);
@@ -62,44 +82,23 @@ public class Cutoff : MonoBehaviour {
 		Plane cutPlane = new Plane (planeNormalInSubspace, planePosInSubspace);
 
 		//Get Mesh Info
+		Mesh _mesh = _meshFilter.mesh;
+		int[] _triangles = _mesh.triangles;
+		Vector3[] _vertices = _mesh.vertices;
 		Dictionary<int, VertexInfo> vertices = new Dictionary<int, VertexInfo> ();
 		Dictionary<string, EdgeInfo> edges = new Dictionary<string, EdgeInfo> ();
 		Dictionary<int, TriangleInfo> triangles = new Dictionary<int, TriangleInfo> ();
-		for (int i = 0; i*3<_triangles.Length; i++) {
-			TriangleInfo triangle = new TriangleInfo ();
-			triangle.index = triangles.Count;
-			triangle.Vertices = new List<int> ();
-			triangles.Add (triangle.index, triangle);
-			for (int j = 0; j < 3; j++) {
-				VertexInfo vertex;
-				if (vertices.ContainsKey (_triangles [3 * i + j])) {
-					vertex = vertices [_triangles [3 * i + j]];
-				} else {
-					vertex = new VertexInfo ();
-					vertex.vertex = _vertices [_triangles [3 * i + j]];
-					vertex.index = _triangles [3 * i + j];
-					vertex.belongToTriangleIndex = new List<int> ();
-					vertex.belongToEdgeIndex = new List<int> ();
-					vertices.Add (vertex.index, vertex);
-				}
-				vertex.belongToTriangleIndex.Add (triangle.index);
-				triangle.Vertices.Add (vertex.index);
-
-				int nextVertexIndex = _triangles [3 * i + (j + 1) % 3];
-				string edgeString = GetEdgeString (vertex.index, nextVertexIndex);
-				EdgeInfo edge;
-				if (edges.Contains (edgeString))
-					edge = edges [edgeString];
-				else {
-					edge = new EdgeInfo ();
-					edge.belongToTriangleIndex = new List<int> ();
-					edge.vertexAIndex = _triangles [3 * i + j];
-					edge.vertexBIndex = _triangles [3 * i + (j + 1) % 3];
-					edges.Add (edgeString, edge);
-				}
-				edge.belongToTriangleIndex.Add (triangle.index);
-			}
+		for (int i = 0; i<_vertices.Count(); i++) {
+			AddVertex(_vertices [i], ref vertices);
 		}
+		for (int i = 0; i*3<_triangles.Length; i++) {
+			VertexInfo[] verticesToBeAdd = new VertexInfo [3];
+			for (int j = 0; j < 3; j++) {
+				verticesToBeAdd[j] = vertices[i*3+j];
+			}
+			AddTriangle(verticesToBeAdd, ref edges, ref triangles);
+		}
+
 		for(int i = 0; i < triangles.Count; i++)
 		{
 			int inPositiveHalfSpaceNum = 0;
@@ -108,89 +107,134 @@ public class Cutoff : MonoBehaviour {
 			TriangleInfo triangle = triangles[i];
 			for(int j = 0; j < 3; j++)
 			{
-				VertexInfo avertex = vertices[triangle.Vertices[j]];
+				VertexInfo avertex = vertices[triangle.vertices[j]];
 				float distanceToPlane = cutPlane.GetDistanceToPoint (avertex.vertex);
 				if(distanceToPlane > 0)
 				{
-					aPositiveVertexIndex = avertex.index;
+					aPositiveVertexIndex = j;
 					inPositiveHalfSpaceNum++;
 				}
 				else
 				{
-					aNegativeVertexIndex = avertex.index
+					aNegativeVertexIndex = j;
 				}
 			}
 
 			if (inPositiveHalfSpaceNum==3) {
-				//Whole triangle is in positive side, just copy the triangle, Do nothing
+				leftTriangles.Add (triangle);
 				
 			} else if (inPositiveHalfSpaceNum==2) {
-				
-				Vector3 newVertexOne = FindContactPointOnEdge(vertexInfo [aNegativeVertexIndex], vertexInfo [(aNegativeVertexIndex + 1)%3], cutPlane);
-				Vector3 newVertexTwo = FindContactPointOnEdge(vertexInfo [aNegativeVertexIndex], vertexInfo [(aNegativeVertexIndex + 2)%3], cutPlane);
-				
-				AddVertex(newVertexOne, ref newVertices, ref newTriangles);
-				AddVertex (vertexInfo [(aNegativeVertexIndex+1)%3].vertex, ref newVertices, ref newTriangles);
-				AddVertex(vertexInfo [(aNegativeVertexIndex+2)%3].vertex, ref newVertices, ref newTriangles);
-				
-				
-				AddVertex(newVertexOne, ref newVertices, ref newTriangles);
-				AddVertex(vertexInfo [(aNegativeVertexIndex+2)%3].vertex, ref newVertices, ref newTriangles);
-				AddVertex(newVertexTwo, ref newVertices, ref newTriangles);
-				
-				AddNewGeneratedVertex(newVertexOne, ref newGeneratedVertices);
-				AddNewGeneratedVertex(newVertexTwo, ref newGeneratedVertices);
-				
+				List<EdgeInfo> crossEdge = new List<EdgeInfo>();
+				foreach(string edgeString in triangle.edges)
+				{
+					EdgeInfo edge = edges[edgeString];
+					if(edge.IsContainVertex(triangle.vertices[aNegativeVertexIndex]))
+					{
+						crossEdge.Add (edge);
+					}
+				}
+
+				for(int k = 0; k < 2; k++)
+				{
+					EdgeInfo edge = crossEdge[k];
+					Vector3 breakPoint = FindContactPointOnEdge(vertices[edge.vertexAIndex], vertices[edge.vertexBIndex], cutPlane);
+					VertexInfo vertex = AddVertex(breakPoint, ref vertices);
+					edge.breakVertexIndex = vertex.index;
+				}
+
+				VertexInfo[] triangleA = new VertexInfo[3]{vertices[crossEdge[0].breakVertexIndex], 
+					vertices[crossEdge[0].GetOtherPoint(triangle.vertices[aNegativeVertexIndex])], 
+					vertices[crossEdge[1].GetOtherPoint(triangle.vertices[aNegativeVertexIndex])]};
+
+				VertexInfo[] triangleB = new VertexInfo[3]{vertices[crossEdge[0].breakVertexIndex], 
+					vertices[crossEdge[1].GetOtherPoint(triangle.vertices[aNegativeVertexIndex])], 
+					vertices[crossEdge[1].breakVertexIndex]};
+
+				VertexInfo[] triangleC = new VertexInfo[3]{vertices[triangle.vertices[aNegativeVertexIndex]], 
+					vertices[crossEdge[0].breakVertexIndex],
+					vertices[crossEdge[1].breakVertexIndex]};
+
+				leftTriangles.Add (AddTriangle(triangleA, ref edges, ref triangles));
+				leftTriangles.Add (AddTriangle(triangleB, ref edges, ref triangles));
+				rightTriangles.Add (AddTriangle(triangleC, ref edges, ref triangles));
 				
 			} else if (inPositiveHalfSpaceNum==1) {
-				Vector3 newVertexOne = FindContactPointOnEdge(vertexInfo [aPositiveVertexIndex], vertexInfo [(aPositiveVertexIndex + 1)%3], cutPlane);
-				Vector3 newVertexTwo = FindContactPointOnEdge(vertexInfo [aPositiveVertexIndex], vertexInfo [(aPositiveVertexIndex + 2)%3], cutPlane);
+				List<EdgeInfo> crossEdge = new List<EdgeInfo>();
+				foreach(string edgeString in triangle.edges)
+				{
+					EdgeInfo edge = edges[edgeString];
+					if(edge.IsContainVertex(triangle.vertices[aPositiveVertexIndex]))
+					{
+						crossEdge.Add (edge);
+					}
+				}
 				
-				AddNewGeneratedVertex(newVertexOne, ref newGeneratedVertices);
-				AddNewGeneratedVertex(newVertexTwo, ref newGeneratedVertices);
+				for(int k = 0; k < 2; k++)
+				{
+					EdgeInfo edge = crossEdge[k];
+					Vector3 breakPoint = FindContactPointOnEdge(vertices[edge.vertexAIndex], vertices[edge.vertexBIndex], cutPlane);
+					VertexInfo vertex = AddVertex(breakPoint, ref vertices);
+					edge.breakVertexIndex = vertex.index;
+				}
 				
-				AddVertex(vertexInfo [aPositiveVertexIndex].vertex, ref newVertices, ref newTriangles);
-				AddVertex(newVertexOne, ref newVertices, ref newTriangles);
-				AddVertex(newVertexTwo, ref newVertices, ref newTriangles);
+				VertexInfo[] triangleA = new VertexInfo[3]{vertices[crossEdge[0].breakVertexIndex], 
+					vertices[crossEdge[0].GetOtherPoint(triangle.vertices[aNegativeVertexIndex])], 
+					vertices[crossEdge[1].GetOtherPoint(triangle.vertices[aNegativeVertexIndex])]};
 				
+				VertexInfo[] triangleB = new VertexInfo[3]{vertices[crossEdge[0].breakVertexIndex], 
+					vertices[crossEdge[1].GetOtherPoint(triangle.vertices[aNegativeVertexIndex])], 
+					vertices[crossEdge[1].breakVertexIndex]};
+				
+				VertexInfo[] triangleC = new VertexInfo[3]{vertices[triangle.vertices[aNegativeVertexIndex]], 
+					vertices[crossEdge[0].breakVertexIndex],
+					vertices[crossEdge[1].breakVertexIndex]};
+				
+				rightTriangles.Add (AddTriangle(triangleA, ref edges, ref triangles));
+				rightTriangles.Add (AddTriangle(triangleB, ref edges, ref triangles));
+				leftTriangles.Add (AddTriangle(triangleC, ref edges, ref triangles));
+
 			} else if (inPositiveHalfSpaceNum==0) {
 				//Whole triangle is culled by plane, just ignore this situation
-				continue;
+				rightTriangles.Add (triangle);
 			}
 		}
-
-
-		FindContourMesh (newGeneratedVertices, cutPlane, ref newVertices, ref newTriangles);
-
-
-		Mesh newMesh = new Mesh ();
-		newMesh.vertices = newVertices.ToArray();
-		newMesh.triangles = newTriangles.ToArray();
-		_meshFilter.mesh = newMesh;
-
-		_collider.sharedMesh = newMesh;
-
 	}
 
-	void AddVertex(Vector3 vertex, ref List<Vector3> newVertices, ref List<int> newTriangles)
+	VertexInfo AddVertex(Vector3 pos, ref Dictionary<int, VertexInfo> vertices)
 	{
-		int index = newVertices.FindIndex(v => v == vertex);
-		if(index != -1)
-		{
-			newTriangles.Add (index);
-		}
-		else
-		{
-			newTriangles.Add (newVertices.Count);
-			newVertices.Add (vertex);
-		}
+		VertexInfo vertex = new VertexInfo();
+		vertex.vertex = pos;
+		vertex.index = vertices.Count;
+		vertex.belongToTriangleIndex = new List<int> ();
+		vertex.belongToEdgeIndex = new List<string> ();
+		vertices.Add (vertex.index, vertex);
+		return vertex;
 	}
 
-	void AddNewGeneratedVertex(Vector3 vertex, ref List<Vector3> newGeneratedVertices)
+	TriangleInfo AddTriangle(VertexInfo[] verticesToAdd, ref Dictionary<string, EdgeInfo> edges, ref Dictionary<int, TriangleInfo> triangles)
 	{
-		if (newGeneratedVertices.FindIndex (v => (v - vertex).magnitude < epslion) < 0) {
-			newGeneratedVertices.Add(vertex);
+		TriangleInfo triangle = new TriangleInfo();
+		triangle.index = triangles.Count;
+		for (int i = 0; i<3; i++) {
+			verticesToAdd[i].belongToTriangleIndex.Add (triangle.index);
+			triangle.vertices.Add(verticesToAdd[i].index);
+			EdgeInfo edge;
+			string edgeString = GetEdgeString (verticesToAdd[i].index, verticesToAdd[(i+1)%3].index);
+			if (edges.ContainsKey (edgeString))
+				edge = edges [edgeString];
+			else {
+				edge = new EdgeInfo ();
+				edge.belongToTriangleIndex = new List<int> ();
+				edge.vertexAIndex = verticesToAdd[i].index;
+				edge.vertexBIndex = verticesToAdd[(i+1)%3].index;
+				edges.Add (edgeString, edge);
+			}
+			triangle.edges.Add(edgeString);
+			edge.belongToTriangleIndex.Add (triangle.index);
+			verticesToAdd[i].belongToEdgeIndex.Add(edgeString);
 		}
+		triangles.Add (triangle.index, triangle);
+		return triangle;
 	}
 
 	Vector3 FindContactPointOnEdge(VertexInfo vertexa, VertexInfo vertexb, Plane cutPlane)
