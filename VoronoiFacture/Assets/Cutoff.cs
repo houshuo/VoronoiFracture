@@ -11,14 +11,14 @@ public class Cutoff : MonoBehaviour {
 	public GameObject newMeshPrefab;
 
 
-	struct VertexInfo{
+	class VertexInfo{
 		public Vector3 vertex;
 		public int index;
 		public List<int> belongToTriangleIndex;
 		public List<string> belongToEdgeIndex;
 	}
 
-	struct EdgeInfo{
+	class EdgeInfo{
 		public int vertexAIndex;
 		public int vertexBIndex;
 		public List<int> belongToTriangleIndex;
@@ -40,7 +40,7 @@ public class Cutoff : MonoBehaviour {
 		}
 	}
 
-	struct TriangleInfo{
+	class TriangleInfo{
 		public int index;
 		public List<string> edges;
 		public List<int> vertices;
@@ -64,15 +64,13 @@ public class Cutoff : MonoBehaviour {
 	public void Cut()
 	{
 		//Get Mesh
-
-
 		GameObject newMeshLeft = (GameObject)Instantiate (newMeshPrefab, transform.position, transform.rotation);
 		MeshFilter newMeshLeftFilter = newMeshLeft.GetComponent<MeshFilter> ();
 		List< TriangleInfo> leftTriangles = new List<TriangleInfo>();
 
 		GameObject newMeshRight = (GameObject)Instantiate (newMeshPrefab, transform.position, transform.rotation);
-		MeshFilter newMeshRightFiter = newMeshRight.GetComponent<MeshFilter> ();
-		List<TriangleInfo> rightTriangles = new List<TriangleInfo>();
+		MeshFilter newMeshRightFilter = newMeshRight.GetComponent<MeshFilter> ();
+		List< TriangleInfo> rightTriangles = new List<TriangleInfo>();
 
 		//Get Cutplane
 		Vector3 planeNormalInSubspace = victim.InverseTransformDirection (transform.forward);
@@ -92,13 +90,14 @@ public class Cutoff : MonoBehaviour {
 		for (int i = 0; i*3<_triangles.Length; i++) {
 			VertexInfo[] verticesToBeAdd = new VertexInfo [3];
 			for (int j = 0; j < 3; j++) {
-				verticesToBeAdd[j] = vertices[i*3+j];
+				verticesToBeAdd[j] = vertices[_triangles[i*3+j]];
 			}
 			AddTriangle(verticesToBeAdd, ref edges, ref triangles);
 		}
 
 		//Cut Mesh
-		for(int i = 0; i < triangles.Count; i++)
+		int triangleNum = triangles.Count;
+		for(int i = 0; i < triangleNum; i++)
 		{
 			int inPositiveHalfSpaceNum = 0;
 			int aPositiveVertexIndex = 0;
@@ -136,9 +135,12 @@ public class Cutoff : MonoBehaviour {
 				for(int k = 0; k < 2; k++)
 				{
 					EdgeInfo edge = crossEdge[k];
-					Vector3 breakPoint = FindContactPointOnEdge(vertices[edge.vertexAIndex], vertices[edge.vertexBIndex], cutPlane);
-					VertexInfo vertex = AddVertex(breakPoint, ref vertices);
-					edge.breakVertexIndex = vertex.index;
+					if(edge.breakVertexIndex == -1)
+					{
+						Vector3 breakPoint = FindContactPointOnEdge(vertices[edge.vertexAIndex], vertices[edge.vertexBIndex], cutPlane);
+						VertexInfo vertex = AddVertex(breakPoint, ref vertices);
+						edge.breakVertexIndex = vertex.index;
+					}
 				}
 
 				VertexInfo[] triangleA = new VertexInfo[3]{vertices[crossEdge[0].breakVertexIndex], 
@@ -171,20 +173,25 @@ public class Cutoff : MonoBehaviour {
 				for(int k = 0; k < 2; k++)
 				{
 					EdgeInfo edge = crossEdge[k];
-					Vector3 breakPoint = FindContactPointOnEdge(vertices[edge.vertexAIndex], vertices[edge.vertexBIndex], cutPlane);
-					VertexInfo vertex = AddVertex(breakPoint, ref vertices);
-					edge.breakVertexIndex = vertex.index;
+
+					if(edge.breakVertexIndex == -1)
+					{
+						Vector3 breakPoint= FindContactPointOnEdge(vertices[edge.vertexAIndex], vertices[edge.vertexBIndex], cutPlane);
+						VertexInfo vertex = AddVertex(breakPoint, ref vertices);
+						edge.breakVertexIndex = vertex.index;
+					}
 				}
-				
+
 				VertexInfo[] triangleA = new VertexInfo[3]{vertices[crossEdge[0].breakVertexIndex], 
-					vertices[crossEdge[0].GetOtherPoint(triangle.vertices[aNegativeVertexIndex])], 
-					vertices[crossEdge[1].GetOtherPoint(triangle.vertices[aNegativeVertexIndex])]};
+					vertices[crossEdge[1].GetOtherPoint(triangle.vertices[aPositiveVertexIndex])], 
+					vertices[crossEdge[0].GetOtherPoint(triangle.vertices[aPositiveVertexIndex])]};
 				
 				VertexInfo[] triangleB = new VertexInfo[3]{vertices[crossEdge[0].breakVertexIndex], 
-					vertices[crossEdge[1].GetOtherPoint(triangle.vertices[aNegativeVertexIndex])], 
-					vertices[crossEdge[1].breakVertexIndex]};
+					vertices[crossEdge[1].breakVertexIndex],
+					vertices[crossEdge[1].GetOtherPoint(triangle.vertices[aPositiveVertexIndex])]};
+
 				
-				VertexInfo[] triangleC = new VertexInfo[3]{vertices[triangle.vertices[aNegativeVertexIndex]], 
+				VertexInfo[] triangleC = new VertexInfo[3]{vertices[triangle.vertices[aPositiveVertexIndex]], 
 					vertices[crossEdge[0].breakVertexIndex],
 					vertices[crossEdge[1].breakVertexIndex]};
 				
@@ -198,34 +205,51 @@ public class Cutoff : MonoBehaviour {
 			}
 		}
 		//Cut mesh end
-
+		List<Vector3> leftVertices = new List<Vector3> ();
+		Dictionary<int, int> verticeIndexCorrespondingDict = new Dictionary<int, int> ();
 		List<int> leftTriangleIndex = new List<int> ();
 		for (int i = 0; i < leftTriangles.Count; i++) {
 			TriangleInfo triangle = leftTriangles[i];
 			foreach(int vIndex in triangle.vertices)
 			{
 				VertexInfo vertexInfo = vertices[vIndex];
-				leftTriangleIndex.Add(vertexInfo.index);
+				if(!verticeIndexCorrespondingDict.ContainsKey(vertexInfo.index))
+				{
+					verticeIndexCorrespondingDict.Add(vertexInfo.index, leftVertices.Count);
+					leftVertices.Add (vertexInfo.vertex);
+
+				}
+				leftTriangleIndex.Add (verticeIndexCorrespondingDict[vertexInfo.index]);
 			}
 		}
 
-		newMeshLeftFilter.mesh.vertices = _vertices;
+		newMeshLeftFilter.mesh.vertices = leftVertices.ToArray();
 		newMeshLeftFilter.mesh.triangles = leftTriangleIndex.ToArray();
+		newMeshLeftFilter.mesh.RecalculateNormals ();
 
+		verticeIndexCorrespondingDict.Clear ();
+		List<Vector3> rightVertices = new List<Vector3> ();
 		List<int> rightTriangleIndex = new List<int> ();
 		for (int i = 0; i < rightTriangles.Count; i++) {
 			TriangleInfo triangle = rightTriangles[i];
 			foreach(int vIndex in triangle.vertices)
 			{
 				VertexInfo vertexInfo = vertices[vIndex];
-				rightTriangleIndex.Add(vertexInfo.index);
+				if(!verticeIndexCorrespondingDict.ContainsKey(vertexInfo.index))
+				{
+					verticeIndexCorrespondingDict.Add(vertexInfo.index, rightVertices.Count);
+					rightVertices.Add (vertexInfo.vertex);
+					
+				}
+				rightTriangleIndex.Add (verticeIndexCorrespondingDict[vertexInfo.index]);
 			}
 		}
 
-		newMeshRightFiter.mesh.vertices = _vertices;
-		newMeshRightFiter.mesh.triangles = rightTriangleIndex.ToArray();
+		newMeshRightFilter.mesh.vertices = rightVertices.ToArray();
+		newMeshRightFilter.mesh.triangles = rightTriangleIndex.ToArray();
+		newMeshRightFilter.mesh.RecalculateNormals ();
 
-		Destroy (victim);
+		Destroy (victim.gameObject);
 	}
 
 	VertexInfo AddVertex(Vector3 pos, ref Dictionary<int, VertexInfo> vertices)
@@ -257,6 +281,7 @@ public class Cutoff : MonoBehaviour {
 				edge.belongToTriangleIndex = new List<int> ();
 				edge.vertexAIndex = verticesToAdd[i].index;
 				edge.vertexBIndex = verticesToAdd[(i+1)%3].index;
+				edge.breakVertexIndex = -1;
 				edges.Add (edgeString, edge);
 			}
 			triangle.edges.Add(edgeString);
