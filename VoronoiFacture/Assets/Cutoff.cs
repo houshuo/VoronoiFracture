@@ -194,24 +194,24 @@ public class Cutoff : MonoBehaviour {
 		//Cut mesh end
 
 		//Add new face
-
 		List<VertexInfo> newGenerateFaceContour = FindContourVertex (vertices, edges, cutPlane.normal);
+		Debug.Log (newGenerateFaceContour [0].vertex.ToString ());
 		if (newGenerateFaceContour.Count > 2) {
 			for(int i = 1; i<newGenerateFaceContour.Count -1; i++)
 			{
+				Debug.Log (string.Format("{0} {1}",newGenerateFaceContour [i].vertex.ToString (), newGenerateFaceContour[i+1].vertex.ToString()));
 				VertexInfo[] triangleLeft = new VertexInfo[3]{newGenerateFaceContour[0],
-					newGenerateFaceContour[i+1],
-					newGenerateFaceContour[i]};
-
-				VertexInfo[] triangleRight = new VertexInfo[3]{newGenerateFaceContour[0],
 					newGenerateFaceContour[i],
 					newGenerateFaceContour[i+1]};
+
+				VertexInfo[] triangleRight = new VertexInfo[3]{newGenerateFaceContour[0],
+					newGenerateFaceContour[i+1],
+					newGenerateFaceContour[i]};
 
 				leftTriangles.Add (AddTriangle(triangleLeft, ref edges, ref triangles));
 				rightTriangles.Add (AddTriangle(triangleRight, ref edges, ref triangles));
 			}
 		}
-
 
 		//Add new face end
 
@@ -237,7 +237,7 @@ public class Cutoff : MonoBehaviour {
 		newMeshLeftFilter.mesh.vertices = leftVertices.ToArray();
 		newMeshLeftFilter.mesh.triangles = leftTriangleIndex.ToArray();
 		newMeshLeftFilter.mesh.RecalculateNormals ();
-		newMeshLeftFilter.mesh.RecalculateNormals ();
+		newMeshLeftFilter.mesh.RecalculateBounds ();
 
 		verticeIndexCorrespondingDict.Clear ();
 		List<Vector3> rightVertices = new List<Vector3> ();
@@ -325,12 +325,19 @@ public class Cutoff : MonoBehaviour {
 		}
 		if (contour.Count == 0)
 			return contour;
+		contour = contour.OrderBy(v => v.vertex.x).ThenBy(v => v.vertex.y).ToList();
+		List<VertexInfo> duplicated = new List<VertexInfo> ();
+		for (int i = 0; i < contour.Count; i++) {
+			if((contour[i].vertex - contour[(i+1)%(contour.Count-1)].vertex).magnitude < epslion)
+				duplicated.Add (contour[i]);
+		}
 
-		int contourNum = contour.Count;
-		for(int i = 0; i < contourNum - 1; i++) 
+		contour.RemoveAll (v => duplicated.Contains (v));
+
+		for(int i = 0; i < contour.Count - 1; i++) 
 		{
 			VertexInfo lastContourPointIndex = contour [i];
-			for (int j=i+1; j<contourNum; j++) 
+			for (int j=i+1; j<contour.Count; j++) 
 			{
 				if(IsNextContourPoint(lastContourPointIndex, contour[j], contour, planeNormal))
 				{
@@ -350,7 +357,7 @@ public class Cutoff : MonoBehaviour {
 		for (int i = 0; i<contourPointSet.Count; i++) 
 		{
 			//Debug.Log (Vector3.Dot(plane.normal, Vector3.Cross (currentPoint - lastContourPoint, input[i] - lastContourPoint)).ToString());
-			if (Vector3.Dot(planeNormal, Vector3.Cross (currentPoint.vertex - lastContourPoint.vertex, contourPointSet[i].vertex - lastContourPoint.vertex)) < -1 * epslion) 
+			if (Vector3.Dot(planeNormal, Vector3.Cross (currentPoint.vertex - lastContourPoint.vertex, contourPointSet[i].vertex - lastContourPoint.vertex)) >  epslion) 
 			{
 				return false;
 			}
