@@ -193,6 +193,28 @@ public class Cutoff : MonoBehaviour {
 		}
 		//Cut mesh end
 
+		//Add new face
+
+		List<VertexInfo> newGenerateFaceContour = FindContourVertex (vertices, edges, cutPlane.normal);
+		if (newGenerateFaceContour.Count > 2) {
+			for(int i = 1; i<newGenerateFaceContour.Count -1; i++)
+			{
+				VertexInfo[] triangleLeft = new VertexInfo[3]{newGenerateFaceContour[0],
+					newGenerateFaceContour[i+1],
+					newGenerateFaceContour[i]};
+
+				VertexInfo[] triangleRight = new VertexInfo[3]{newGenerateFaceContour[0],
+					newGenerateFaceContour[i],
+					newGenerateFaceContour[i+1]};
+
+				leftTriangles.Add (AddTriangle(triangleLeft, ref edges, ref triangles));
+				rightTriangles.Add (AddTriangle(triangleRight, ref edges, ref triangles));
+			}
+		}
+
+
+		//Add new face end
+
 		//re-assemble mesh
 		List<Vector3> leftVertices = new List<Vector3> ();
 		Dictionary<int, int> verticeIndexCorrespondingDict = new Dictionary<int, int> ();
@@ -283,8 +305,6 @@ public class Cutoff : MonoBehaviour {
 		return triangle;
 	}
 
-
-	#region FindContactPoint
 	Vector3 FindContactPointOnEdge(VertexInfo vertexa, VertexInfo vertexb, Plane cutPlane)
 	{
 		Vector3 newVertex;
@@ -294,48 +314,43 @@ public class Cutoff : MonoBehaviour {
 		newVertex = aRay.GetPoint (rayDistance);
 		return newVertex;
 	}
-	
-	void FindContourMesh(List<Vector3> input, Plane plane, ref List<Vector3> newVertices, ref List<int> newTriangles)
+
+	#region FindContourMesh
+	List<VertexInfo> FindContourVertex(Dictionary<int, VertexInfo> vertices, Dictionary<string, EdgeInfo> edges, Vector3 planeNormal)
 	{
-		if (input.Count == 0)
-			return;
-		List<Vector3> contourVertices = new List<Vector3> ();
-		contourVertices.Add (input [0]);
-		for(int i = 0; i < input.Count ; i++) 
+		List<VertexInfo> contour = new List<VertexInfo> ();
+		foreach (KeyValuePair<string, EdgeInfo> edge in edges) {
+			if(edge.Value.breakVertexIndex != -1)
+				contour.Add(vertices[edge.Value.breakVertexIndex]);
+		}
+		if (contour.Count == 0)
+			return contour;
+
+		int contourNum = contour.Count;
+		for(int i = 0; i < contourNum - 1; i++) 
 		{
-			Vector3 lastContourPoint = contourVertices [contourVertices.Count - 1];
-			for (int j=0; j<input.Count; j++) 
+			VertexInfo lastContourPointIndex = contour [i];
+			for (int j=i+1; j<contourNum; j++) 
 			{
-				if(input[j] == lastContourPoint)
+				if(IsNextContourPoint(lastContourPointIndex, contour[j], contour, planeNormal))
 				{
-					continue;
-				}
-				if(IsNextContourPoint(lastContourPoint, input[j], input, plane))
-				{
-					contourVertices.Add (input [j]);
+					VertexInfo nextContourPoint = contour[j];
+					contour.RemoveAt(j);
+					contour.Insert(i+1, nextContourPoint);
 					break;
 				}
 			}
 		}
-		
-		if (contourVertices.Count >= 3) {
-			for (int i = 1; i<contourVertices.Count - 1; i++) {
-				newTriangles.Add (newVertices.Count);
-				newVertices.Add (contourVertices[0]);
-				newTriangles.Add (newVertices.Count);
-				newVertices.Add (contourVertices[i+1]);
-				newTriangles.Add (newVertices.Count);
-				newVertices.Add (contourVertices[i]);
-			}
-		}
+		return contour;
+
 	}
 
-	bool IsNextContourPoint(Vector3 lastContourPoint, Vector3 currentPoint, List<Vector3> input, Plane plane)
+	bool IsNextContourPoint(VertexInfo lastContourPoint, VertexInfo currentPoint, List<VertexInfo> contourPointSet, Vector3 planeNormal)
 	{
-		for (int i = 0; i<input.Count; i++) 
+		for (int i = 0; i<contourPointSet.Count; i++) 
 		{
 			//Debug.Log (Vector3.Dot(plane.normal, Vector3.Cross (currentPoint - lastContourPoint, input[i] - lastContourPoint)).ToString());
-			if (Vector3.Dot(plane.normal, Vector3.Cross (currentPoint - lastContourPoint, input[i] - lastContourPoint)) < -1 * epslion) 
+			if (Vector3.Dot(planeNormal, Vector3.Cross (currentPoint.vertex - lastContourPoint.vertex, contourPointSet[i].vertex - lastContourPoint.vertex)) < -1 * epslion) 
 			{
 				return false;
 			}
