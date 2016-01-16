@@ -10,9 +10,15 @@ public class Cutoff : MonoBehaviour {
 	public float epslion = 0.0001f;
 	public GameObject newMeshPrefab;
 
+	void OnMouseDown()
+	{
+		Cut ();
+	}
+
 
 	class VertexInfo{
 		public Vector3 vertex;
+		public Vector3 normal;
 		public int index;
 		public List<int> belongToTriangleIndex;
 		public List<string> belongToEdgeIndex;
@@ -64,11 +70,11 @@ public class Cutoff : MonoBehaviour {
 	public void Cut()
 	{
 		//Get Mesh
-		GameObject newMeshLeft = (GameObject)Instantiate (newMeshPrefab, transform.position, transform.rotation);
+		GameObject newMeshLeft = (GameObject)Instantiate (newMeshPrefab, victim.position, victim.rotation);
 		MeshFilter newMeshLeftFilter = newMeshLeft.GetComponent<MeshFilter> ();
 		List< TriangleInfo> leftTriangles = new List<TriangleInfo>();
 
-		GameObject newMeshRight = (GameObject)Instantiate (newMeshPrefab, transform.position, transform.rotation);
+		GameObject newMeshRight = (GameObject)Instantiate (newMeshPrefab, victim.position, victim.rotation);
 		MeshFilter newMeshRightFilter = newMeshRight.GetComponent<MeshFilter> ();
 		List< TriangleInfo> rightTriangles = new List<TriangleInfo>();
 
@@ -81,11 +87,12 @@ public class Cutoff : MonoBehaviour {
 		Mesh _mesh = _meshFilter.mesh;
 		int[] _triangles = _mesh.triangles;
 		Vector3[] _vertices = _mesh.vertices;
+		Vector3[] _normals = _mesh.normals;
 		Dictionary<int, VertexInfo> vertices = new Dictionary<int, VertexInfo> ();
 		Dictionary<string, EdgeInfo> edges = new Dictionary<string, EdgeInfo> ();
 		Dictionary<int, TriangleInfo> triangles = new Dictionary<int, TriangleInfo> ();
 		for (int i = 0; i<_vertices.Count(); i++) {
-			AddVertex(_vertices [i], ref vertices);
+			AddVertex(_vertices [i], _normals[i], ref vertices);
 		}
 		for (int i = 0; i*3<_triangles.Length; i++) {
 			VertexInfo[] verticesToBeAdd = new VertexInfo [3];
@@ -130,8 +137,10 @@ public class Cutoff : MonoBehaviour {
 					EdgeInfo edge = edges[edgeString];
 					if(edge.breakVertexIndex == -1)
 					{
-						Vector3 breakPoint = FindContactPointOnEdge(vertices[edge.vertexAIndex], vertices[edge.vertexBIndex], cutPlane);
-						VertexInfo vertex = AddVertex(breakPoint, ref vertices);
+						Vector3 breakPoint;
+						Vector3 normal;
+						FindContactPointAndNormalOnEdge(vertices[edge.vertexAIndex], vertices[edge.vertexBIndex], cutPlane, out breakPoint, out normal);
+						VertexInfo vertex = AddVertex(breakPoint, normal, ref vertices);
 						edge.breakVertexIndex = vertex.index;
 					}
 					crossEdge.Add (edge);
@@ -162,8 +171,10 @@ public class Cutoff : MonoBehaviour {
 
 					if(edge.breakVertexIndex == -1)
 					{
-						Vector3 breakPoint= FindContactPointOnEdge(vertices[edge.vertexAIndex], vertices[edge.vertexBIndex], cutPlane);
-						VertexInfo vertex = AddVertex(breakPoint, ref vertices);
+						Vector3 breakPoint;
+						Vector3 normal;
+						FindContactPointAndNormalOnEdge(vertices[edge.vertexAIndex], vertices[edge.vertexBIndex], cutPlane, out breakPoint, out normal);
+						VertexInfo vertex = AddVertex(breakPoint, normal, ref vertices);
 						edge.breakVertexIndex = vertex.index;
 					}
 					crossEdge.Add (edge);
@@ -195,18 +206,22 @@ public class Cutoff : MonoBehaviour {
 
 		//Add new face
 		List<VertexInfo> newGenerateFaceContour = FindContourVertex (vertices, edges, cutPlane.normal);
-		Debug.Log (newGenerateFaceContour [0].vertex.ToString ());
+		List<VertexInfo> newGenerateFaceLeft = new List<VertexInfo> ();
+		List<VertexInfo> newGenerateFaceRight = new List<VertexInfo> ();
+		foreach (VertexInfo avertex in newGenerateFaceContour) {
+			newGenerateFaceLeft.Add (AddVertex (avertex.vertex, cutPlane.normal, ref vertices));
+			newGenerateFaceRight.Add (AddVertex (avertex.vertex, -1*cutPlane.normal, ref vertices));
+		}
 		if (newGenerateFaceContour.Count > 2) {
 			for(int i = 1; i<newGenerateFaceContour.Count -1; i++)
 			{
-				Debug.Log (string.Format("{0} {1}",newGenerateFaceContour [i].vertex.ToString (), newGenerateFaceContour[i+1].vertex.ToString()));
-				VertexInfo[] triangleLeft = new VertexInfo[3]{newGenerateFaceContour[0],
-					newGenerateFaceContour[i],
-					newGenerateFaceContour[i+1]};
+				VertexInfo[] triangleLeft = new VertexInfo[3]{newGenerateFaceLeft[0],
+					newGenerateFaceLeft[i],
+					newGenerateFaceLeft[i+1]};
 
-				VertexInfo[] triangleRight = new VertexInfo[3]{newGenerateFaceContour[0],
-					newGenerateFaceContour[i+1],
-					newGenerateFaceContour[i]};
+				VertexInfo[] triangleRight = new VertexInfo[3]{newGenerateFaceRight[0],
+					newGenerateFaceRight[i+1],
+					newGenerateFaceRight[i]};
 
 				leftTriangles.Add (AddTriangle(triangleLeft, ref edges, ref triangles));
 				rightTriangles.Add (AddTriangle(triangleRight, ref edges, ref triangles));
@@ -217,6 +232,7 @@ public class Cutoff : MonoBehaviour {
 
 		//re-assemble mesh
 		List<Vector3> leftVertices = new List<Vector3> ();
+		List<Vector3> leftNormals = new List<Vector3> ();
 		Dictionary<int, int> verticeIndexCorrespondingDict = new Dictionary<int, int> ();
 		List<int> leftTriangleIndex = new List<int> ();
 		for (int i = 0; i < leftTriangles.Count; i++) {
@@ -228,19 +244,21 @@ public class Cutoff : MonoBehaviour {
 				{
 					verticeIndexCorrespondingDict.Add(vertexInfo.index, leftVertices.Count);
 					leftVertices.Add (vertexInfo.vertex);
-
+					leftNormals.Add (vertexInfo.normal);
 				}
 				leftTriangleIndex.Add (verticeIndexCorrespondingDict[vertexInfo.index]);
 			}
 		}
 
 		newMeshLeftFilter.mesh.vertices = leftVertices.ToArray();
+		newMeshLeftFilter.mesh.normals = leftNormals.ToArray ();
 		newMeshLeftFilter.mesh.triangles = leftTriangleIndex.ToArray();
 		newMeshLeftFilter.mesh.RecalculateNormals ();
 		newMeshLeftFilter.mesh.RecalculateBounds ();
 
 		verticeIndexCorrespondingDict.Clear ();
 		List<Vector3> rightVertices = new List<Vector3> ();
+		List<Vector3> rightNormals = new List<Vector3> ();
 		List<int> rightTriangleIndex = new List<int> ();
 		for (int i = 0; i < rightTriangles.Count; i++) {
 			TriangleInfo triangle = rightTriangles[i];
@@ -251,13 +269,14 @@ public class Cutoff : MonoBehaviour {
 				{
 					verticeIndexCorrespondingDict.Add(vertexInfo.index, rightVertices.Count);
 					rightVertices.Add (vertexInfo.vertex);
-					
+					rightNormals.Add (vertexInfo.normal);
 				}
 				rightTriangleIndex.Add (verticeIndexCorrespondingDict[vertexInfo.index]);
 			}
 		}
 
 		newMeshRightFilter.mesh.vertices = rightVertices.ToArray();
+		newMeshRightFilter.mesh.normals = rightNormals.ToArray ();
 		newMeshRightFilter.mesh.triangles = rightTriangleIndex.ToArray();
 		newMeshRightFilter.mesh.RecalculateNormals ();
 		newMeshRightFilter.mesh.RecalculateBounds ();
@@ -265,10 +284,11 @@ public class Cutoff : MonoBehaviour {
 		Destroy (victim.gameObject);
 	}
 
-	VertexInfo AddVertex(Vector3 pos, ref Dictionary<int, VertexInfo> vertices)
+	VertexInfo AddVertex(Vector3 pos, Vector3 normal, ref Dictionary<int, VertexInfo> vertices)
 	{
 		VertexInfo vertex = new VertexInfo();
 		vertex.vertex = pos;
+		vertex.normal = normal;
 		vertex.index = vertices.Count;
 		vertex.belongToTriangleIndex = new List<int> ();
 		vertex.belongToEdgeIndex = new List<string> ();
@@ -305,14 +325,15 @@ public class Cutoff : MonoBehaviour {
 		return triangle;
 	}
 
-	Vector3 FindContactPointOnEdge(VertexInfo vertexa, VertexInfo vertexb, Plane cutPlane)
+	void FindContactPointAndNormalOnEdge(VertexInfo vertexa, VertexInfo vertexb, Plane cutPlane, out Vector3 pos, out Vector3 normal)
 	{
-		Vector3 newVertex;
 		float rayDistance;
 		Ray aRay = new Ray (vertexa.vertex, vertexb.vertex - vertexa.vertex);
 		cutPlane.Raycast (aRay, out rayDistance);
-		newVertex = aRay.GetPoint (rayDistance);
-		return newVertex;
+		pos = aRay.GetPoint (rayDistance);
+
+		float ratio = rayDistance / (vertexb.vertex - vertexa.vertex).magnitude;
+		normal = Vector3.Lerp (vertexa.vertex, vertexb.vertex, ratio);
 	}
 
 	#region FindContourMesh
@@ -365,12 +386,7 @@ public class Cutoff : MonoBehaviour {
 		return true;
 	}
 	#endregion
-
-	void OnMouseDown()
-	{
-		Cut ();
-	}
-
+	
 	#region Delaunay
 	bool IsAPointInsideTrianglesCircumcircle(Vector3 point, Vector3 vertexA, Vector3 vertexB, Vector3 vertexC)
 	{
