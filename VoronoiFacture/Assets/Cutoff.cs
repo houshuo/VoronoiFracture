@@ -28,7 +28,11 @@ public class Cutoff : MonoBehaviour {
 		public int vertexAIndex;
 		public int vertexBIndex;
 		public List<int> belongToTriangleIndex;
-		public int breakVertexIndex;
+		public bool isContourEdge;
+		public bool IsCrossEdge(EdgeInfo edge)
+		{
+			return true;
+		}
 
 		public bool IsContainVertex(int vertexIndex)
 		{
@@ -44,6 +48,33 @@ public class Cutoff : MonoBehaviour {
 			else
 				return -1;
 		}
+
+		public int GetOtherTriangle(int triangleIndex)
+		{
+			if (belongToTriangleIndex.Count < 2)
+				return -1;
+			else if (triangleIndex == belongToTriangleIndex [0])
+				return belongToTriangleIndex [1];
+			else if (triangleIndex == belongToTriangleIndex [1])
+				return belongToTriangleIndex [0];
+			else
+				return -1;
+		}
+
+		public string GetSelfEdgeString()
+		{
+			return GetEdgeString (vertexAIndex, vertexBIndex);
+		}
+
+		public static string GetEdgeString(int vertexAIndex, int vertexBIndex)
+		{
+			if (vertexAIndex > vertexBIndex)
+				return vertexAIndex.ToString () + "-" + vertexBIndex.ToString ();
+			else if (vertexBIndex > vertexAIndex)
+				return vertexBIndex.ToString () + "-" + vertexAIndex.ToString ();
+			else
+				return "";
+		}
 	}
 
 	class TriangleInfo{
@@ -52,20 +83,32 @@ public class Cutoff : MonoBehaviour {
 		public List<int> vertices;
 	}
 
+	class DelaunayTriangleInfo: TriangleInfo
+	{
+		public static bool IsAPointInsideTrianglesCircumcircle(Vector3 point, Vector3 vertexA, Vector3 vertexB, Vector3 vertexC)
+		{
+			Vector3 edgeAB = vertexA - vertexB;
+			Vector3 edgeBC = vertexB - vertexC;
+			Vector3 edgeCA = vertexC - vertexA;
+			float denominator = 2 * (Vector3.Cross(edgeAB, edgeBC)).magnitude;
+			float radius = edgeAB.magnitude * edgeBC.magnitude * edgeCA.magnitude / denominator;
+			
+			float alpha = Vector3.Dot (edgeBC, edgeBC) * Vector3.Dot(edgeAB , -1 * edgeCA) / denominator;
+			float beta = Vector3.Dot (edgeCA, edgeCA) * Vector3.Dot(-1 * edgeAB, edgeBC) / denominator;
+			float gamma = Vector3.Dot(edgeAB, edgeAB) * Vector3.Dot(edgeCA, -1 * edgeBC) / denominator;
+			
+			Vector3 center = vertexA * alpha + vertexB * beta + vertexC * gamma;
+			
+			return (point - center).magnitude < radius;
+		}
+	}
+
 	void Start()
 	{
 		_meshFilter = victim.gameObject.GetComponent<MeshFilter> ();
 	}
 
-	private string GetEdgeString(int vertexAIndex, int vertexBIndex)
-	{
-		if (vertexAIndex > vertexBIndex)
-			return vertexAIndex.ToString () + "-" + vertexBIndex.ToString ();
-		else if (vertexBIndex > vertexAIndex)
-			return vertexBIndex.ToString () + "-" + vertexAIndex.ToString ();
-		else
-			return "";
-	}
+
 
 	public void Cut()
 	{
@@ -82,6 +125,9 @@ public class Cutoff : MonoBehaviour {
 		Vector3 planeNormalInSubspace = victim.InverseTransformDirection (transform.forward);
 		Vector3 planePosInSubspace = victim.InverseTransformPoint (transform.position);
 		Plane cutPlane = new Plane (planeNormalInSubspace, planePosInSubspace);
+
+		//New Generated Points
+		Dictionary<string, VertexInfo> newGeneratedPoints = new Dictionary<string, VertexInfo> ();
 
 		//Get Mesh Info
 		Mesh _mesh = _meshFilter.mesh;
@@ -133,30 +179,30 @@ public class Cutoff : MonoBehaviour {
 
 				for(int k = 0; k < 2; k++)
 				{
-					string edgeString = GetEdgeString(triangle.vertices[aNegativeVertexIndex], triangle.vertices[(aNegativeVertexIndex+1+k)%3]);
+					string edgeString = EdgeInfo.GetEdgeString(triangle.vertices[aNegativeVertexIndex], triangle.vertices[(aNegativeVertexIndex+1+k)%3]);
 					EdgeInfo edge = edges[edgeString];
-					if(edge.breakVertexIndex == -1)
+					if(!newGeneratedPoints.ContainsKey(edgeString))
 					{
 						Vector3 breakPoint;
 						Vector3 normal;
 						FindContactPointAndNormalOnEdge(vertices[edge.vertexAIndex], vertices[edge.vertexBIndex], cutPlane, out breakPoint, out normal);
 						VertexInfo vertex = AddVertex(breakPoint, normal, ref vertices);
-						edge.breakVertexIndex = vertex.index;
+						newGeneratedPoints[edgeString] = vertex;
 					}
 					crossEdge.Add (edge);
 				}
 
-				VertexInfo[] triangleA = new VertexInfo[3]{vertices[crossEdge[0].breakVertexIndex], 
+				VertexInfo[] triangleA = new VertexInfo[3]{newGeneratedPoints[crossEdge[0].GetSelfEdgeString()], 
 					vertices[crossEdge[0].GetOtherPoint(triangle.vertices[aNegativeVertexIndex])], 
 					vertices[crossEdge[1].GetOtherPoint(triangle.vertices[aNegativeVertexIndex])]};
 
-				VertexInfo[] triangleB = new VertexInfo[3]{vertices[crossEdge[0].breakVertexIndex], 
+				VertexInfo[] triangleB = new VertexInfo[3]{newGeneratedPoints[crossEdge[0].GetSelfEdgeString()], 
 					vertices[crossEdge[1].GetOtherPoint(triangle.vertices[aNegativeVertexIndex])], 
-					vertices[crossEdge[1].breakVertexIndex]};
+					newGeneratedPoints[crossEdge[1].GetSelfEdgeString()]};
 
 				VertexInfo[] triangleC = new VertexInfo[3]{vertices[triangle.vertices[aNegativeVertexIndex]], 
-					vertices[crossEdge[0].breakVertexIndex],
-					vertices[crossEdge[1].breakVertexIndex]};
+					newGeneratedPoints[crossEdge[0].GetSelfEdgeString()],
+					newGeneratedPoints[crossEdge[1].GetSelfEdgeString()]};
 
 				leftTriangles.Add (AddTriangle(triangleA, ref edges, ref triangles));
 				leftTriangles.Add (AddTriangle(triangleB, ref edges, ref triangles));
@@ -166,32 +212,32 @@ public class Cutoff : MonoBehaviour {
 				List<EdgeInfo> crossEdge = new List<EdgeInfo>();
 				for(int k = 0; k < 2; k++)
 				{
-					string edgeString = GetEdgeString(triangle.vertices[aPositiveVertexIndex], triangle.vertices[(aPositiveVertexIndex+1+k)%3]);
+					string edgeString = EdgeInfo.GetEdgeString(triangle.vertices[aPositiveVertexIndex], triangle.vertices[(aPositiveVertexIndex+1+k)%3]);
 					EdgeInfo edge = edges[edgeString];
 
-					if(edge.breakVertexIndex == -1)
+					if(!newGeneratedPoints.ContainsKey(edgeString))
 					{
 						Vector3 breakPoint;
 						Vector3 normal;
 						FindContactPointAndNormalOnEdge(vertices[edge.vertexAIndex], vertices[edge.vertexBIndex], cutPlane, out breakPoint, out normal);
 						VertexInfo vertex = AddVertex(breakPoint, normal, ref vertices);
-						edge.breakVertexIndex = vertex.index;
+						newGeneratedPoints[edgeString] = vertex;
 					}
 					crossEdge.Add (edge);
 				}
 
-				VertexInfo[] triangleA = new VertexInfo[3]{vertices[crossEdge[0].breakVertexIndex], 
+				VertexInfo[] triangleA = new VertexInfo[3]{newGeneratedPoints[crossEdge[0].GetSelfEdgeString()], 
 					vertices[crossEdge[0].GetOtherPoint(triangle.vertices[aPositiveVertexIndex])], 
 					vertices[crossEdge[1].GetOtherPoint(triangle.vertices[aPositiveVertexIndex])]};
 				
-				VertexInfo[] triangleB = new VertexInfo[3]{vertices[crossEdge[0].breakVertexIndex], 
+				VertexInfo[] triangleB = new VertexInfo[3]{newGeneratedPoints[crossEdge[0].GetSelfEdgeString()], 
 					vertices[crossEdge[1].GetOtherPoint(triangle.vertices[aPositiveVertexIndex])],
-					vertices[crossEdge[1].breakVertexIndex]};
+					newGeneratedPoints[crossEdge[1].GetSelfEdgeString()]};
 
 				
 				VertexInfo[] triangleC = new VertexInfo[3]{vertices[triangle.vertices[aPositiveVertexIndex]], 
-					vertices[crossEdge[0].breakVertexIndex],
-					vertices[crossEdge[1].breakVertexIndex]};
+					newGeneratedPoints[crossEdge[0].GetSelfEdgeString()],
+					newGeneratedPoints[crossEdge[1].GetSelfEdgeString()]};
 				
 				rightTriangles.Add (AddTriangle(triangleA, ref edges, ref triangles));
 				rightTriangles.Add (AddTriangle(triangleB, ref edges, ref triangles));
@@ -205,7 +251,7 @@ public class Cutoff : MonoBehaviour {
 		//Cut mesh end
 
 		//Add new face
-		List<VertexInfo> newGenerateFaceContour = FindContourVertex (vertices, edges, cutPlane.normal);
+		List<VertexInfo> newGenerateFaceContour = FindContourVertex (newGeneratedPoints.Values.ToList(), cutPlane.normal);
 		List<VertexInfo> newGenerateFaceLeft = new List<VertexInfo> ();
 		List<VertexInfo> newGenerateFaceRight = new List<VertexInfo> ();
 		foreach (VertexInfo avertex in newGenerateFaceContour) {
@@ -306,7 +352,7 @@ public class Cutoff : MonoBehaviour {
 			verticesToAdd[i].belongToTriangleIndex.Add (triangle.index);
 			triangle.vertices.Add(verticesToAdd[i].index);
 			EdgeInfo edge;
-			string edgeString = GetEdgeString (verticesToAdd[i].index, verticesToAdd[(i+1)%3].index);
+			string edgeString = EdgeInfo.GetEdgeString (verticesToAdd[i].index, verticesToAdd[(i+1)%3].index);
 			if (edges.ContainsKey (edgeString))
 				edge = edges [edgeString];
 			else {
@@ -314,7 +360,6 @@ public class Cutoff : MonoBehaviour {
 				edge.belongToTriangleIndex = new List<int> ();
 				edge.vertexAIndex = verticesToAdd[i].index;
 				edge.vertexBIndex = verticesToAdd[(i+1)%3].index;
-				edge.breakVertexIndex = -1;
 				edges.Add (edgeString, edge);
 			}
 			triangle.edges.Add(edgeString);
@@ -323,6 +368,21 @@ public class Cutoff : MonoBehaviour {
 		}
 		triangles.Add (triangle.index, triangle);
 		return triangle;
+	}
+
+	EdgeInfo AddEdge(VertexInfo vertexa, VertexInfo vertexb, ref Dictionary<string, EdgeInfo> edges)
+	{
+		string edgeString = EdgeInfo.GetEdgeString(vertexa.index, vertexb.index);
+		EdgeInfo edge;
+		if (!edges.ContainsKey (edgeString)) {
+			edge = new EdgeInfo ();
+			edge.vertexAIndex = vertexa.index;
+			edge.vertexBIndex = vertexb.index;
+			edges [edgeString] = edge;
+		} else {
+			edge = edges[edgeString];
+		}
+		return edge;
 	}
 
 	void FindContactPointAndNormalOnEdge(VertexInfo vertexa, VertexInfo vertexb, Plane cutPlane, out Vector3 pos, out Vector3 normal)
@@ -337,13 +397,8 @@ public class Cutoff : MonoBehaviour {
 	}
 
 	#region FindContourMesh
-	List<VertexInfo> FindContourVertex(Dictionary<int, VertexInfo> vertices, Dictionary<string, EdgeInfo> edges, Vector3 planeNormal)
+	List<VertexInfo> FindContourVertex(List<VertexInfo> contour, Vector3 planeNormal)
 	{
-		List<VertexInfo> contour = new List<VertexInfo> ();
-		foreach (KeyValuePair<string, EdgeInfo> edge in edges) {
-			if(edge.Value.breakVertexIndex != -1)
-				contour.Add(vertices[edge.Value.breakVertexIndex]);
-		}
 		if (contour.Count == 0)
 			return contour;
 		contour = contour.OrderBy(v => v.vertex.x).ThenBy(v => v.vertex.y).ToList();
@@ -388,39 +443,38 @@ public class Cutoff : MonoBehaviour {
 	#endregion
 	
 	#region Delaunay
-	bool IsAPointInsideTrianglesCircumcircle(Vector3 point, Vector3 vertexA, Vector3 vertexB, Vector3 vertexC)
+	void FindContourMeshDelaunay(List<VertexInfo> contour, Plane plane)
 	{
-		Vector3 edgeAB = vertexA - vertexB;
-		Vector3 edgeBC = vertexB - vertexC;
-		Vector3 edgeCA = vertexC - vertexA;
-		float denominator = 2 * (Vector3.Cross(edgeAB, edgeBC)).magnitude;
-		float radius = edgeAB.magnitude * edgeBC.magnitude * edgeCA.magnitude / denominator;
+		contour = contour.OrderBy(v=>v.vertex.x).ThenBy(v => v.vertex.z).ToList();
+		List<VertexInfo> duplicated = new List<VertexInfo> ();
+		for (int i = 0; i < contour.Count; i++) {
+			if((contour[i].vertex - contour[(i+1)%(contour.Count-1)].vertex).magnitude < epslion)
+				duplicated.Add (contour[i]);
+		}
+		contour.RemoveAll (v => duplicated.Contains (v));
 
-		float alpha = Vector3.Dot (edgeBC, edgeBC) * Vector3.Dot(edgeAB , -1 * edgeCA) / denominator;
-		float beta = Vector3.Dot (edgeCA, edgeCA) * Vector3.Dot(-1 * edgeAB, edgeBC) / denominator;
-		float gamma = Vector3.Dot(edgeAB, edgeAB) * Vector3.Dot(edgeCA, -1 * edgeBC) / denominator;
+		Dictionary<string, EdgeInfo> edges = new Dictionary<string, EdgeInfo> ();
 
-		Vector3 center = vertexA * alpha + vertexB * beta + vertexC * gamma;
-
-		return (point - center).magnitude < radius;
-	}
-
-	/*void FindContourMeshDelaunay(List<Vector3> input, Plane plane, ref List<Vector3> newVertices, ref List<int> newTriangles)
-	{
-		if (input.Count == 0)
-			return;
-		IEnumerable<Vector3> sortedVerticesEnumerator = input.OrderBy(v=>v.x).ThenBy(v => v.z);
-		input = sortedVerticesEnumerator.ToList ();
-		
-		DelaunayDivideAndConquer (input, vertices, ref newVertices, ref );
+		DelaunayDivideAndConquer (contour, ref edges);
 	}
 	
-	void DelaunayDivideAndConquer(List<int> input, List<Vector3> vertices, ref List<Vector3> newVertices, ref List<int> newTriangles)
+	void DelaunayDivideAndConquer(List<VertexInfo> vertices, ref Dictionary<string, EdgeInfo> edges)
 	{
-		if (input.Count == 3) {
-			
+		if (vertices.Count == 2) {
+			EdgeInfo edge = AddEdge (vertices [0], vertices [1], ref edges);
+			edge.isContourEdge = true;
+		} else if (vertices.Count == 3) {
+			for (int i = 0; i < 3; i++) {
+				EdgeInfo edge = AddEdge (vertices [i], vertices [(i + 1) % 2], ref edges);
+				edge.isContourEdge = true;
+			}
+		} else if (vertices.Count > 3) {
+			Dictionary<string, EdgeInfo> leftEdges = new Dictionary<string, EdgeInfo>();
+			Dictionary<string, EdgeInfo> rightEdges = new Dictionary<string, EdgeInfo>();
+			DelaunayDivideAndConquer(vertices.Take(vertices.Count/2).ToList(), ref leftEdges);
+			DelaunayDivideAndConquer(vertices.Skip(vertices.Count/2).ToList(), ref rightEdges);
 		}
-	}*/
+	}
 	#endregion
 }
 
