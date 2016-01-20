@@ -515,7 +515,15 @@ public class Cutoff : MonoBehaviour {
 			List<VertexInfo> leftVertices = vertices.Take(vertices.Count/2).ToList();
 			List<VertexInfo> rightVertices = vertices.Skip(vertices.Count/2).ToList();
 			Dictionary<string, EdgeInfo> leftEdges = DelaunayDivideAndConquer(leftVertices);
+			foreach(KeyValuePair<string, EdgeInfo> pair in leftEdges)
+			{
+				newGeneratedEdges.Add (pair.Key, pair.Value);
+			}
 			Dictionary<string, EdgeInfo> rightEdges = DelaunayDivideAndConquer(rightVertices);
+			foreach(KeyValuePair<string, EdgeInfo> pair in rightEdges)
+			{
+				newGeneratedEdges.Add (pair.Key, pair.Value);
+			}
 			KeyValuePair<VertexInfo, VertexInfo> lowBoundEdge = FindHullEdge(leftVertices, leftEdges, rightVertices, rightEdges, true);
 			KeyValuePair<VertexInfo, VertexInfo> upperBoundEdge = FindHullEdge(leftVertices, leftEdges, rightVertices, rightEdges, false);
 			VertexInfo L = lowBoundEdge.Key;
