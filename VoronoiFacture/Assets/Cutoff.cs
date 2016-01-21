@@ -35,11 +35,7 @@ public class Cutoff : MonoBehaviour {
 		public int vertexAIndex;
 		public int vertexBIndex;
 		public List<int> belongToTriangleIndex;
-		public bool IsCrossEdge(EdgeInfo edge)
-		{
-			return true;
-		}
-
+		public bool isConstraintEdge;
 		public bool IsContainVertex(int vertexIndex)
 		{
 			return vertexIndex == vertexAIndex || vertexIndex == vertexBIndex;
@@ -70,6 +66,24 @@ public class Cutoff : MonoBehaviour {
 		public string GetSelfEdgeString()
 		{
 			return GetEdgeString (vertexAIndex, vertexBIndex);
+		}
+
+		public bool IsSelfIntersectWithSegment(VertexInfo vertexa, VertexInfo vertexb, Dictionary<int, VertexInfo> vertices)
+		{
+			Vector2 o1 = new Vector2(vertexa.vertex.x, vertexa.vertex.z);
+			Vector2 d1 = new Vector2 ((vertexb.vertex- vertexa.vertex).x, (vertexb.vertex- vertexa.vertex).z);
+
+			Vector2 o2 = new Vector2(vertices[vertexAIndex].vertex.x, vertices[vertexAIndex].vertex.z);
+			Vector2 d2 = new Vector2 ((vertices[vertexBIndex].vertex- vertices[vertexAIndex].vertex).x, (vertices[vertexBIndex].vertex - vertices[vertexAIndex].vertex).z);
+
+
+
+			Vector2 o = o2 - o1;
+			float t1 = (o.x * d2.y - o.y * d2.x) / (d1.x * d2.y - d1.y * d2.x);
+			float t2 = (o.x * d1.y - o.y * d1.x) / (d1.x * d2.y - d1.y * d2.x);
+
+			return (t1 >= 0 && t1 <= 1) && (t2 >= 0 && t2 <= 1);
+
 		}
 
 		public static string GetEdgeString(int vertexAIndex, int vertexBIndex)
@@ -124,13 +138,13 @@ public class Cutoff : MonoBehaviour {
 		cutPlane = new Plane (planeNormalInSubspace, planePosInSubspace);
 
 		//Get Mesh
-		GameObject newMeshLeft = (GameObject)Instantiate (newMeshPrefab, victim.position, victim.rotation);
+		/*GameObject newMeshLeft = (GameObject)Instantiate (newMeshPrefab, victim.position, victim.rotation);
 		MeshFilter newMeshLeftFilter = newMeshLeft.GetComponent<MeshFilter> ();
 		List< TriangleInfo> leftTriangles = new List<TriangleInfo>();
 
 		GameObject newMeshRight = (GameObject)Instantiate (newMeshPrefab, victim.position, victim.rotation);
 		MeshFilter newMeshRightFilter = newMeshRight.GetComponent<MeshFilter> ();
-		List< TriangleInfo> rightTriangles = new List<TriangleInfo>();
+		List< TriangleInfo> rightTriangles = new List<TriangleInfo>();*/
 
 		//New Generated Points
 		Dictionary<string, VertexInfo> newGeneratedPoints = new Dictionary<string, VertexInfo> ();
@@ -176,7 +190,7 @@ public class Cutoff : MonoBehaviour {
 			}
 
 			if (inPositiveHalfSpaceNum==3) {
-				leftTriangles.Add (triangle);
+				//leftTriangles.Add (triangle);
 				
 			} else if (inPositiveHalfSpaceNum==2) {
 				List<EdgeInfo> crossEdge = new List<EdgeInfo>();
@@ -184,6 +198,13 @@ public class Cutoff : MonoBehaviour {
 				for(int k = 0; k < 2; k++)
 				{
 					string edgeString = EdgeInfo.GetEdgeString(triangle.vertices[aNegativeVertexIndex], triangle.vertices[(aNegativeVertexIndex+1+k)%3]);
+					if(edges.ContainsKey(edgeString) == false)
+					{
+						Debug.Log (edgeString);
+						foreach(string s in edges.Keys)
+							Debug.Log (s);
+					}
+
 					EdgeInfo edge = edges[edgeString];
 					if(!newGeneratedPoints.ContainsKey(edgeString))
 					{
@@ -208,9 +229,9 @@ public class Cutoff : MonoBehaviour {
 					newGeneratedPoints[crossEdge[0].GetSelfEdgeString()],
 					newGeneratedPoints[crossEdge[1].GetSelfEdgeString()]};
 
-				leftTriangles.Add (AddTriangle(triangleA));
+				/*leftTriangles.Add (AddTriangle(triangleA));
 				leftTriangles.Add (AddTriangle(triangleB));
-				rightTriangles.Add (AddTriangle(triangleC));
+				rightTriangles.Add (AddTriangle(triangleC));*/
 				
 			} else if (inPositiveHalfSpaceNum==1) {
 				List<EdgeInfo> crossEdge = new List<EdgeInfo>();
@@ -243,19 +264,27 @@ public class Cutoff : MonoBehaviour {
 					newGeneratedPoints[crossEdge[0].GetSelfEdgeString()],
 					newGeneratedPoints[crossEdge[1].GetSelfEdgeString()]};
 				
-				rightTriangles.Add (AddTriangle(triangleA));
+				/*rightTriangles.Add (AddTriangle(triangleA));
 				rightTriangles.Add (AddTriangle(triangleB));
-				leftTriangles.Add (AddTriangle(triangleC));
+				leftTriangles.Add (AddTriangle(triangleC));*/
 
 			} else if (inPositiveHalfSpaceNum==0) {
 				//Whole triangle is culled by plane, just ignore this situation
-				rightTriangles.Add (triangle);
+				//rightTriangles.Add (triangle);
 			}
 		}
 		//Cut mesh end
 
+
+
 		//Add new face
-		List<VertexInfo> newGenerateFaceContour = FindContourVertex (newGeneratedPoints.Values.ToList(), cutPlane.normal);
+		List<VertexInfo> newGenerateFaceContour = FindContourVertex (newGeneratedPoints.Values.ToList());
+		for(int i = 0; i<newGenerateFaceContour.Count; i++)
+		{
+			Debug.Log (newGenerateFaceContour[i].vertex.ToString());
+			Debug.DrawLine(newGenerateFaceContour[i].vertex, newGenerateFaceContour[(i+1)%(newGenerateFaceContour.Count)].vertex, Color.red, 1000);
+		}
+		/*
 		List<VertexInfo> newGenerateFaceLeft = new List<VertexInfo> ();
 		List<VertexInfo> newGenerateFaceRight = new List<VertexInfo> ();
 		foreach (VertexInfo avertex in newGenerateFaceContour) {
@@ -329,7 +358,7 @@ public class Cutoff : MonoBehaviour {
 		newMeshRightFilter.mesh.normals = rightNormals.ToArray ();
 		newMeshRightFilter.mesh.triangles = rightTriangleIndex.ToArray();
 		newMeshRightFilter.mesh.RecalculateNormals ();
-		newMeshRightFilter.mesh.RecalculateBounds ();
+		newMeshRightFilter.mesh.RecalculateBounds ();*/
 
 		Destroy (victim.gameObject);
 	}
@@ -360,7 +389,7 @@ public class Cutoff : MonoBehaviour {
 		for (int i = 0; i<3; i++) {
 			verticesToAdd[i].belongToTriangleIndex.Add (triangle.index);
 			triangle.vertices.Add(verticesToAdd[i].index);
-			EdgeInfo edge = _AddEdge (verticesToAdd[i], verticesToAdd[i+1]);
+			EdgeInfo edge = _AddEdge (verticesToAdd[i], verticesToAdd[(i+1)%3]);
 			triangle.edges.Add(edge.GetSelfEdgeString());
 			edge.belongToTriangleIndex.Add (triangle.index);
 			verticesToAdd[i].belongToEdgeIndex.Add(edge.GetSelfEdgeString());
@@ -378,6 +407,7 @@ public class Cutoff : MonoBehaviour {
 			edge.vertexAIndex = vertexa.index;
 			edge.vertexBIndex = vertexb.index;
 			edge.belongToTriangleIndex = new List<int> ();
+			edge.isConstraintEdge = false;
 			edges [edgeString] = edge;
 		} else {
 			edge = edges[edgeString];
@@ -445,14 +475,14 @@ public class Cutoff : MonoBehaviour {
 	}
 
 	#region FindContourMesh
-	List<VertexInfo> FindContourVertex(List<VertexInfo> contour, Vector3 planeNormal)
+	List<VertexInfo> FindContourVertex(List<VertexInfo> contour)
 	{
 		if (contour.Count == 0)
 			return contour;
 		contour = contour.OrderBy(v => v.vertex.x).ThenBy(v => v.vertex.y).ToList();
 		List<VertexInfo> duplicated = new List<VertexInfo> ();
 		for (int i = 0; i < contour.Count; i++) {
-			if((contour[i].vertex - contour[(i+1)%(contour.Count-1)].vertex).magnitude < epslion)
+			if((contour[i].vertex - contour[(i+1)%contour.Count].vertex).magnitude < epslion)
 				duplicated.Add (contour[i]);
 		}
 
@@ -461,15 +491,21 @@ public class Cutoff : MonoBehaviour {
 		for(int i = 0; i < contour.Count - 1; i++) 
 		{
 			VertexInfo lastContourPointIndex = contour [i];
+			bool findNextContourPoint = false;
 			for (int j=i+1; j<contour.Count; j++) 
 			{
-				if(IsNextContourPoint(lastContourPointIndex, contour[j], contour, planeNormal))
+				if(IsNextContourPoint(lastContourPointIndex, contour[j], contour, cutPlane.normal))
 				{
 					VertexInfo nextContourPoint = contour[j];
 					contour.RemoveAt(j);
 					contour.Insert(i+1, nextContourPoint);
+					findNextContourPoint = true;
 					break;
 				}
+			}
+			if(!findNextContourPoint)
+			{
+				return contour.Take(i).ToList();
 			}
 		}
 		return contour;
@@ -491,12 +527,12 @@ public class Cutoff : MonoBehaviour {
 	#endregion
 	
 	#region Delaunay
-	void FindContourMeshDelaunay(List<VertexInfo> contour, Plane plane)
+	void FindContourMeshDelaunay(List<VertexInfo> contour)
 	{
 		contour = contour.OrderBy(v=>v.vertex.x).ThenBy(v => v.vertex.z).ToList();
 		List<VertexInfo> duplicated = new List<VertexInfo> ();
 		for (int i = 0; i < contour.Count; i++) {
-			if((contour[i].vertex - contour[(i+1)%(contour.Count-1)].vertex).magnitude < epslion)
+			if((contour[i].vertex - contour[(i+1)%contour.Count].vertex).magnitude < epslion)
 				duplicated.Add (contour[i]);
 		}
 		contour.RemoveAll (v => duplicated.Contains (v));
@@ -510,7 +546,7 @@ public class Cutoff : MonoBehaviour {
 			newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
 		} else if (vertices.Count == 3) {
 			for (int i = 0; i < 3; i++) {
-				EdgeInfo edge = AddEdge (vertices [i], vertices [(i + 1) % 2]);
+				EdgeInfo edge = AddEdge (vertices [i], vertices [(i + 1) % 3]);
 				newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
 			}
 		} else if (vertices.Count > 3) {
@@ -693,7 +729,49 @@ public class Cutoff : MonoBehaviour {
 
 	void AddConstraintEdge(VertexInfo vertexa, VertexInfo vertexb)
 	{
+		List<VertexInfo> leftVertices = new List<VertexInfo> ();
+		leftVertices.Add (vertexa);
+		leftVertices.Add (vertexb);
+		List<VertexInfo> rightVertices = new List<VertexInfo> ();
+		rightVertices.Add (vertexa);
+		rightVertices.Add (vertexb);
 
+		List<EdgeInfo> toBeRemoveEdges = new List<EdgeInfo> ();
+		foreach(EdgeInfo edge in edges.Values)
+		{
+			if(edge.IsSelfIntersectWithSegment(vertexa, vertexb, vertices) && !edge.isConstraintEdge)
+			{
+				if(IsRightOfVector(vertexa, vertexb, vertices[edge.vertexAIndex]))
+				{
+					rightVertices.Add(vertices[edge.vertexAIndex]);
+					leftVertices.Add(vertices[edge.vertexBIndex]);
+				}
+				else
+				{
+					rightVertices.Add(vertices[edge.vertexBIndex]);
+					leftVertices.Add(vertices[edge.vertexAIndex]);
+				}
+
+				toBeRemoveEdges.Add (edge);
+			}
+		}
+
+		for(int i = 0; i<toBeRemoveEdges.Count; i++)
+		{
+			EdgeInfo edge = toBeRemoveEdges[i];
+			RemoveEdge(vertices[edge.vertexAIndex], vertices[edge.vertexBIndex]);
+		}
+
+		EdgeInfo newEdge = AddEdge (vertexa, vertexb);
+		newEdge.isConstraintEdge = true;
+
+		FindContourMeshDelaunay (leftVertices);
+		FindContourMeshDelaunay (rightVertices);
+	}
+
+	void EatTriangleVirus(TriangleInfo beginTriangle)
+	{
+		Stack<TriangleInfo> stack = new Stack<TriangleInfo> ();
 	}
 	#endregion
 }
