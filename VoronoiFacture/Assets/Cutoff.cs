@@ -377,6 +377,7 @@ public class Cutoff : MonoBehaviour {
 			edge = new EdgeInfo ();
 			edge.vertexAIndex = vertexa.index;
 			edge.vertexBIndex = vertexb.index;
+			edge.belongToTriangleIndex = new List<int> ();
 			edges [edgeString] = edge;
 		} else {
 			edge = edges[edgeString];
@@ -395,6 +396,7 @@ public class Cutoff : MonoBehaviour {
 			foreach(int vIndex in commonVertex)
 			{
 				VertexInfo[] newTriangle = new VertexInfo[3]{vertexa, vertexb, vertices[vIndex]};
+				AddTriangle(newTriangle);
 			}
 			return edges[EdgeInfo.GetEdgeString(vertexa.index, vertexb.index)];
 		} else {
@@ -687,6 +689,11 @@ public class Cutoff : MonoBehaviour {
 		}
 
 		return vertices[edges[nextEdgeString].GetOtherPoint(vertexCenter.index)];
+	}
+
+	void AddConstraintEdge(VertexInfo vertexa, VertexInfo vertexb)
+	{
+
 	}
 	#endregion
 }
