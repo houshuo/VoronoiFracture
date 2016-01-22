@@ -576,7 +576,7 @@ public class Cutoff : MonoBehaviour {
 			Debug.DrawLine (victim.TransformPoint(upperBoundEdge.Key.vertex), victim.TransformPoint(upperBoundEdge.Value.vertex), Color.blue, 1000);
 
 			newGeneratedEdges.Add (lowEdge.GetSelfEdgeString(), lowEdge);
-			//newGeneratedEdges.Add (highEdge.GetSelfEdgeString(), highEdge);
+			newGeneratedEdges.Add (highEdge.GetSelfEdgeString(), highEdge);
 			/*VertexInfo L = lowBoundEdge.Key;
 			VertexInfo R = lowBoundEdge.Value;
 			while(lowBoundEdge.Key != upperBoundEdge.Key && lowBoundEdge.Value != upperBoundEdge.Value)
@@ -660,13 +660,13 @@ public class Cutoff : MonoBehaviour {
 			Y = rightVertices [0];
 			Z = FirstNextPointOnContour (Y, rightVertices);
 			Z_ = FirstNextPointOnContour (X, leftVertices);
-			Z__ = FindPrevVertex (X, Z_, false);
+			Z__ = FindPrevVertex (X, Z_, true);
 		} else {
 			X = rightVertices [0];
 			Y = leftVertices [leftVertices.Count - 1];
 			Z = FirstNextPointOnContour (Y, leftVertices);
 			Z_ = FirstNextPointOnContour (X, rightVertices);
-			Z__ = FindPrevVertex (X, Z_, false);
+			Z__ = FindPrevVertex (X, Z_, true);
 		}
 		while (true) {
 			if(IsRightOfVector(X, Y, Z))
@@ -708,7 +708,7 @@ public class Cutoff : MonoBehaviour {
 		return Vector3.Dot (Vector3.Cross (vertexEnd.vertex - vertexCenter.vertex, vertex.vertex - vertexCenter.vertex), cutPlane.normal) > 0;
 	}
 
-	VertexInfo FindPrevVertex(VertexInfo vertexCenter, VertexInfo vertexEnd, bool isCCW)
+	VertexInfo FindPrevVertex(VertexInfo vertexCenter, VertexInfo vertexEnd, bool isCW)
 	{
 		List<string> adjancentEdges = vertexCenter.belongToEdgeIndex;
 		if (adjancentEdges.Count == 1)
@@ -717,7 +717,7 @@ public class Cutoff : MonoBehaviour {
 		List<string> leftEdges = adjancentEdges.Except (rightEdges).ToList ();
 		string nextEdgeString;
 		Func<string, float> calculateDot = eString => {EdgeInfo e = edges[eString]; return Vector3.Dot((vertexEnd.vertex - vertexCenter.vertex).normalized, (vertices [e.GetOtherPoint (vertexCenter.index)].vertex - vertexCenter.vertex).normalized);};
-		if (!isCCW) {
+		if (isCW) {
 			if(rightEdges.Count>0)
 			{
 				nextEdgeString = rightEdges.OrderByDescending(calculateDot).First();
