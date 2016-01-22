@@ -124,8 +124,6 @@ public class Cutoff : MonoBehaviour {
 		_meshFilter = victim.gameObject.GetComponent<MeshFilter> ();
 	}
 
-
-
 	public void Cut()
 	{
 		//initialize public variables
@@ -531,7 +529,7 @@ public class Cutoff : MonoBehaviour {
 	#region Delaunay
 	void FindContourMeshDelaunay(List<VertexInfo> contour)
 	{
-		contour = contour.OrderBy(v=>transform.InverseTransformPoint(v.vertex).x).ThenBy(v => transform.InverseTransformPoint(v.vertex).z).ToList();
+		contour = contour.OrderBy(v=>transform.InverseTransformPoint(v.vertex).x).ThenBy(v => transform.InverseTransformPoint(v.vertex).y).ToList();
 		List<VertexInfo> duplicated = new List<VertexInfo> ();
 		for (int i = 0; i < contour.Count; i++) {
 			if((contour[i].vertex - contour[(i+1)%contour.Count].vertex).magnitude < epslion)
@@ -546,10 +544,12 @@ public class Cutoff : MonoBehaviour {
 	{
 		Dictionary<string, EdgeInfo> newGeneratedEdges = new Dictionary<string, EdgeInfo> ();
 		if (vertices.Count == 2) {
+			Debug.DrawLine (victim.TransformPoint(vertices [0].vertex), victim.TransformPoint(vertices [1].vertex), Color.red, 1000);
 			EdgeInfo edge = AddEdge (vertices [0], vertices [1]);
 			newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
 		} else if (vertices.Count == 3) {
 			for (int i = 0; i < 3; i++) {
+				Debug.DrawLine (victim.TransformPoint(vertices [i].vertex), victim.TransformPoint(vertices [(i + 1) % 3].vertex), Color.red, 1000);
 				EdgeInfo edge = AddEdge (vertices [i], vertices [(i + 1) % 3]);
 				newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
 			}
@@ -567,16 +567,17 @@ public class Cutoff : MonoBehaviour {
 				newGeneratedEdges.Add (pair.Key, pair.Value);
 			}
 
-			KeyValuePair<VertexInfo, VertexInfo> lowBoundEdge = FindHullEdge(leftVertices, leftEdges, rightVertices, rightEdges, false);
-			KeyValuePair<VertexInfo, VertexInfo> upperBoundEdge = FindHullEdge(leftVertices, leftEdges, rightVertices, rightEdges, true);
+			KeyValuePair<VertexInfo, VertexInfo> lowBoundEdge = FindHullEdge(leftVertices, leftEdges, rightVertices, rightEdges, true);
+			KeyValuePair<VertexInfo, VertexInfo> upperBoundEdge = FindHullEdge(leftVertices, leftEdges, rightVertices, rightEdges, false);
 
-			/*foreach (EdgeInfo edge in leftEdges.Values)
-				Debug.DrawLine (this.vertices [edge.vertexAIndex].vertex, this.vertices [edge.vertexBIndex].vertex, Color.green, 1000);
-			foreach (EdgeInfo edge in rightEdges.Values)
-				Debug.DrawLine (this.vertices [edge.vertexAIndex].vertex, this.vertices [edge.vertexBIndex].vertex, Color.green, 1000);
-			Debug.DrawLine(lowBoundEdge.Key.vertex, lowBoundEdge.Value.vertex, Color.red, 1000);
-			Debug.DrawLine(upperBoundEdge.Key.vertex, upperBoundEdge.Value.vertex, Color.blue, 1000);*/
-			VertexInfo L = lowBoundEdge.Key;
+			EdgeInfo lowEdge = _AddEdge(lowBoundEdge.Key, lowBoundEdge.Value);
+			EdgeInfo highEdge = _AddEdge(upperBoundEdge.Key, upperBoundEdge.Value);
+			Debug.DrawLine (victim.TransformPoint(lowBoundEdge.Key.vertex), victim.TransformPoint(lowBoundEdge.Value.vertex), Color.green, 1000);
+			Debug.DrawLine (victim.TransformPoint(upperBoundEdge.Key.vertex), victim.TransformPoint(upperBoundEdge.Value.vertex), Color.blue, 1000);
+
+			newGeneratedEdges.Add (lowEdge.GetSelfEdgeString(), lowEdge);
+			//newGeneratedEdges.Add (highEdge.GetSelfEdgeString(), highEdge);
+			/*VertexInfo L = lowBoundEdge.Key;
 			VertexInfo R = lowBoundEdge.Value;
 			while(lowBoundEdge.Key != upperBoundEdge.Key && lowBoundEdge.Value != upperBoundEdge.Value)
 			{
@@ -598,10 +599,8 @@ public class Cutoff : MonoBehaviour {
 					{
 						string edgeString = RemoveEdge(R, R1);
 						newGeneratedEdges.Remove(edgeString);
-						VertexInfo tmp = R2;
-
+						R1 = R2;
 						R2 = FindPrevVertex(R, R1, false);
-						R1 = tmp;
 					}
 				}
 				else
@@ -617,9 +616,8 @@ public class Cutoff : MonoBehaviour {
 					{
 						string edgeString = RemoveEdge(L, L1);
 						newGeneratedEdges.Remove(edgeString);
-						VertexInfo tmp = L2;
-						L2 = FindPrevVertex(L, L1, false);
-						L1 = tmp;
+						L1 = L2;
+						L2 = FindPrevVertex(L, L1, true);
 					}
 				}
 				else
@@ -645,15 +643,13 @@ public class Cutoff : MonoBehaviour {
 				}
 
 				lowBoundEdge = new KeyValuePair<VertexInfo, VertexInfo>(L, R);
-			}
+			}*/
 		}
 		return newGeneratedEdges;
 	}
 
 	KeyValuePair<VertexInfo, VertexInfo> FindHullEdge(List<VertexInfo> leftVertices, Dictionary<string, EdgeInfo> leftEdges, List<VertexInfo> rightVertices, Dictionary<string, EdgeInfo> rightEdges, bool lowerBound)
 	{
-
-
 		VertexInfo X;
 		VertexInfo Y;
 		VertexInfo Z;
@@ -715,13 +711,9 @@ public class Cutoff : MonoBehaviour {
 	VertexInfo FindPrevVertex(VertexInfo vertexCenter, VertexInfo vertexEnd, bool isCCW)
 	{
 		List<string> adjancentEdges = vertexCenter.belongToEdgeIndex;
-
-		if (!adjancentEdges.Contains (EdgeInfo.GetEdgeString (vertexCenter.index, vertexEnd.index)))
-			throw new Exception(string.Format("No such edge exist: {0}", EdgeInfo.GetEdgeString(vertexCenter.index, vertexEnd.index)));
 		if (adjancentEdges.Count == 1)
 			return vertexEnd;
-		EdgeInfo currentEdge = edges [EdgeInfo.GetEdgeString (vertexCenter.index, vertexEnd.index)];
-		List<string> rightEdges = adjancentEdges.Where (e => Vector3.Dot (Vector3.Cross (vertexEnd.vertex - vertexCenter.vertex, vertices [currentEdge.GetOtherPoint (vertexCenter.index)].vertex - vertexCenter.vertex), cutPlane.normal) > 0).ToList();
+		List<string> rightEdges = adjancentEdges.Where (e => Vector3.Dot (Vector3.Cross (vertexEnd.vertex - vertexCenter.vertex, vertices [edges[e].GetOtherPoint (vertexCenter.index)].vertex - vertexCenter.vertex), cutPlane.normal) > 0).ToList();
 		List<string> leftEdges = adjancentEdges.Except (rightEdges).ToList ();
 		string nextEdgeString;
 		Func<string, float> calculateDot = eString => {EdgeInfo e = edges[eString]; return Vector3.Dot((vertexEnd.vertex - vertexCenter.vertex).normalized, (vertices [e.GetOtherPoint (vertexCenter.index)].vertex - vertexCenter.vertex).normalized);};
@@ -743,14 +735,6 @@ public class Cutoff : MonoBehaviour {
 			{
 				nextEdgeString = rightEdges.OrderBy(calculateDot).First();
 			}
-		}
-
-		if (isCCW) {
-			Debug.DrawLine (vertexCenter.vertex, vertexEnd.vertex, Color.red, 1000);
-			Debug.DrawLine (vertexCenter.vertex, vertices [edges [nextEdgeString].GetOtherPoint (vertexCenter.index)].vertex, Color.green, 1000);
-		} else {
-			Debug.DrawLine (vertexCenter.vertex, vertexEnd.vertex, Color.red, 1000);
-			Debug.DrawLine (vertexCenter.vertex, vertices [edges [nextEdgeString].GetOtherPoint (vertexCenter.index)].vertex, Color.blue, 1000);
 		}
 
 		return vertices[edges[nextEdgeString].GetOtherPoint(vertexCenter.index)];
