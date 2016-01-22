@@ -705,7 +705,7 @@ public class Cutoff : MonoBehaviour {
 
 	bool IsRightOfVector(VertexInfo vertexCenter, VertexInfo vertexEnd, VertexInfo vertex)
 	{
-		return Vector3.Dot (Vector3.Cross (vertexEnd.vertex - vertexCenter.vertex, vertex.vertex - vertexCenter.vertex), cutPlane.normal) > 0;
+		return Vector3.Dot (Vector3.Cross (vertexEnd.vertex - vertexCenter.vertex, vertex.vertex - vertexCenter.vertex), cutPlane.normal) > epslion;
 	}
 
 	VertexInfo FindPrevVertex(VertexInfo vertexCenter, VertexInfo vertexEnd, bool isCW)
