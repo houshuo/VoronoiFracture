@@ -17,12 +17,6 @@ public class Cutoff : MonoBehaviour {
 	private Dictionary<int, TriangleInfo> triangles;
 	private List<VertexInfo> contourVertices;
 
-	void OnMouseDown()
-	{
-		Cut ();
-	}
-
-
 	class VertexInfo{
 		public static int nextIndex = 0;
 		public Vector3 vertex;
@@ -126,6 +120,7 @@ public class Cutoff : MonoBehaviour {
 	void Start()
 	{
 		_meshFilter = victim.gameObject.GetComponent<MeshFilter> ();
+		Cut ();
 	}
 
 	public void Cut()
@@ -375,7 +370,6 @@ public class Cutoff : MonoBehaviour {
 
 	TriangleInfo AddTriangle(VertexInfo[] verticesToAdd)
 	{
-		Debug.Log (string.Format ("{0} {1} {2}", verticesToAdd[0].index.ToString(), verticesToAdd[1].index.ToString(), verticesToAdd[2].index.ToString()));
 		if (!IsRightOfVector (verticesToAdd [0], verticesToAdd [1], verticesToAdd [2])) {
 			VertexInfo tmp = verticesToAdd[2];
 			verticesToAdd[2] = verticesToAdd[1];
@@ -414,8 +408,7 @@ public class Cutoff : MonoBehaviour {
 			vertexa.belongToEdgeIndex.Add (edgeString);
 		if(vertexb.belongToEdgeIndex.Contains (edgeString) == false)
 			vertexb.belongToEdgeIndex.Add (edgeString);
-		Debug.Log (string.Format("index: {0}, edgeCount: {1}", vertexa.index.ToString(), vertexa.belongToEdgeIndex.Count.ToString()));
-		Debug.Log (string.Format("index: {0}, edgeCount: {1}", vertexb.index.ToString(), vertexb.belongToEdgeIndex.Count.ToString()));
+	
 		return edge;
 	}
 
@@ -541,8 +534,6 @@ public class Cutoff : MonoBehaviour {
 		}
 		contour.RemoveAll (v => duplicated.Contains (v));
 
-		Debug.Log (contour.Count.ToString ());
-
 		Dictionary<string, EdgeInfo> newEdges = DelaunayDivideAndConquer (contour);
 		foreach (EdgeInfo edge in newEdges.Values)
 			Debug.DrawLine (victim.TransformPoint (vertices [edge.vertexAIndex].vertex), victim.TransformPoint (vertices [edge.vertexBIndex].vertex), Color.green, 1000);
@@ -550,17 +541,16 @@ public class Cutoff : MonoBehaviour {
 	
 	Dictionary<string, EdgeInfo>  DelaunayDivideAndConquer(List<VertexInfo> vertices)
 	{
-		Debug.Log ("DelaunayDivideAndConquer");
 		Dictionary<string, EdgeInfo> newGeneratedEdges = new Dictionary<string, EdgeInfo> ();
 		if (vertices.Count == 2) {
 			EdgeInfo edge = _AddEdge (vertices [0], vertices [1]);
 			newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
-			Debug.DrawLine (victim.TransformPoint (vertices [0].vertex), victim.TransformPoint (vertices [1].vertex), Color.red, 1000);
+
 		} else if (vertices.Count == 3) {
 			for (int i = 0; i < 3; i++) {
+				Debug.Log (victim.TransformPoint(vertices [i].vertex).ToString());
 				EdgeInfo edge = _AddEdge (vertices [i], vertices [(i + 1) % 3]);
 				newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
-				Debug.DrawLine (victim.TransformPoint (vertices [i].vertex), victim.TransformPoint (vertices [(i+1)%3].vertex), Color.red, 1000);
 			}
 		} else if (vertices.Count > 3) {
 			List<VertexInfo> leftVertices = vertices.Take(vertices.Count/2).ToList();
@@ -568,15 +558,17 @@ public class Cutoff : MonoBehaviour {
 			Dictionary<string, EdgeInfo> leftEdges = DelaunayDivideAndConquer(leftVertices);
 			foreach(KeyValuePair<string, EdgeInfo> pair in leftEdges)
 			{
+				Debug.DrawLine (victim.TransformPoint (this.vertices[pair.Value.vertexAIndex].vertex), victim.TransformPoint (this.vertices[pair.Value.vertexBIndex].vertex), Color.blue, 1000);
 				newGeneratedEdges.Add (pair.Key, pair.Value);
 			}
 			Dictionary<string, EdgeInfo> rightEdges = DelaunayDivideAndConquer(rightVertices);
 			foreach(KeyValuePair<string, EdgeInfo> pair in rightEdges)
 			{
+				Debug.DrawLine (victim.TransformPoint (this.vertices[pair.Value.vertexAIndex].vertex), victim.TransformPoint (this.vertices[pair.Value.vertexBIndex].vertex), Color.red, 1000);
 				newGeneratedEdges.Add (pair.Key, pair.Value);
 			}
 
-			/*KeyValuePair<VertexInfo, VertexInfo> lowBoundEdge = FindHullEdge(leftVertices, leftEdges, rightVertices, rightEdges, false);
+			KeyValuePair<VertexInfo, VertexInfo> lowBoundEdge = FindHullEdge(leftVertices, leftEdges, rightVertices, rightEdges, false);
 			KeyValuePair<VertexInfo, VertexInfo> upperBoundEdge = FindHullEdge(leftVertices, leftEdges, rightVertices, rightEdges, true);
 
 			VertexInfo L = lowBoundEdge.Key;
@@ -586,6 +578,8 @@ public class Cutoff : MonoBehaviour {
 				bool A = false;
 				bool B = false;
 				EdgeInfo edge = _AddEdge(L, R);
+				//if(newGeneratedEdges.ContainsKey(edge.GetSelfEdgeString()))
+				//	Debug.DrawLine(victim.TransformPoint(this.vertices[edge.vertexAIndex].vertex), victim.TransformPoint(this.vertices[edge.vertexBIndex].vertex), Color.blue, 1000);
 				newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
 				Debug.DrawLine (victim.TransformPoint (L.vertex), victim.TransformPoint (R.vertex), Color.green, 1000);
 				VertexInfo R1 = FindPrevVertex(R, L, true);
@@ -596,6 +590,7 @@ public class Cutoff : MonoBehaviour {
 					{
 						string edgeString = RemoveEdge(R, R1);
 						newGeneratedEdges.Remove(edgeString);
+						Debug.DrawLine (victim.TransformPoint (R.vertex), victim.TransformPoint (R1.vertex), Color.gray, 1000);
 						R1 = R2;
 						R2 = FindPrevVertex(R, R1, true);
 					}
@@ -613,6 +608,7 @@ public class Cutoff : MonoBehaviour {
 					{
 						string edgeString = RemoveEdge(L, L1);
 						newGeneratedEdges.Remove(edgeString);
+						Debug.DrawLine (victim.TransformPoint (L.vertex), victim.TransformPoint (L1.vertex), Color.gray, 1000);
 						L1 = L2;
 						L2 = FindPrevVertex(L, L1, true);
 					}
@@ -641,9 +637,9 @@ public class Cutoff : MonoBehaviour {
 
 				lowBoundEdge = new KeyValuePair<VertexInfo, VertexInfo>(L, R);
 			}
-			EdgeInfo upperEdge = AddEdge(upperBoundEdge.Key, upperBoundEdge.Value);
+			EdgeInfo upperEdge = _AddEdge(upperBoundEdge.Key, upperBoundEdge.Value);
 			newGeneratedEdges.Add (upperEdge.GetSelfEdgeString(), upperEdge);
-			Debug.DrawLine (victim.TransformPoint (upperBoundEdge.Key.vertex), victim.TransformPoint (upperBoundEdge.Value.vertex), Color.green, 1000);*/
+			Debug.DrawLine (victim.TransformPoint (upperBoundEdge.Key.vertex), victim.TransformPoint (upperBoundEdge.Value.vertex), Color.green, 1000);
 		}
 		return newGeneratedEdges;
 	}
