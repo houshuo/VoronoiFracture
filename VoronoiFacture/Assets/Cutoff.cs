@@ -197,12 +197,6 @@ public class Cutoff : MonoBehaviour {
 				for(int k = 0; k < 2; k++)
 				{
 					string edgeString = EdgeInfo.GetEdgeString(triangle.vertices[aNegativeVertexIndex], triangle.vertices[(aNegativeVertexIndex+1+k)%3]);
-					if(edges.ContainsKey(edgeString) == false)
-					{
-						Debug.Log (edgeString);
-						foreach(string s in edges.Keys)
-							Debug.Log (s);
-					}
 
 					EdgeInfo edge = edges[edgeString];
 					if(!newGeneratedPoints.ContainsKey(edgeString))
@@ -216,7 +210,7 @@ public class Cutoff : MonoBehaviour {
 					crossEdge.Add (edge);
 				}
 
-				VertexInfo[] triangleA = new VertexInfo[3]{newGeneratedPoints[crossEdge[0].GetSelfEdgeString()], 
+				/*VertexInfo[] triangleA = new VertexInfo[3]{newGeneratedPoints[crossEdge[0].GetSelfEdgeString()], 
 					vertices[crossEdge[0].GetOtherPoint(triangle.vertices[aNegativeVertexIndex])], 
 					vertices[crossEdge[1].GetOtherPoint(triangle.vertices[aNegativeVertexIndex])]};
 
@@ -228,7 +222,7 @@ public class Cutoff : MonoBehaviour {
 					newGeneratedPoints[crossEdge[0].GetSelfEdgeString()],
 					newGeneratedPoints[crossEdge[1].GetSelfEdgeString()]};
 
-				/*leftTriangles.Add (AddTriangle(triangleA));
+				leftTriangles.Add (AddTriangle(triangleA));
 				leftTriangles.Add (AddTriangle(triangleB));
 				rightTriangles.Add (AddTriangle(triangleC));*/
 				
@@ -250,7 +244,7 @@ public class Cutoff : MonoBehaviour {
 					crossEdge.Add (edge);
 				}
 
-				VertexInfo[] triangleA = new VertexInfo[3]{newGeneratedPoints[crossEdge[0].GetSelfEdgeString()], 
+				/*VertexInfo[] triangleA = new VertexInfo[3]{newGeneratedPoints[crossEdge[0].GetSelfEdgeString()], 
 					vertices[crossEdge[0].GetOtherPoint(triangle.vertices[aPositiveVertexIndex])], 
 					vertices[crossEdge[1].GetOtherPoint(triangle.vertices[aPositiveVertexIndex])]};
 				
@@ -263,7 +257,7 @@ public class Cutoff : MonoBehaviour {
 					newGeneratedPoints[crossEdge[0].GetSelfEdgeString()],
 					newGeneratedPoints[crossEdge[1].GetSelfEdgeString()]};
 				
-				/*rightTriangles.Add (AddTriangle(triangleA));
+				rightTriangles.Add (AddTriangle(triangleA));
 				rightTriangles.Add (AddTriangle(triangleB));
 				leftTriangles.Add (AddTriangle(triangleC));*/
 
@@ -393,7 +387,6 @@ public class Cutoff : MonoBehaviour {
 			EdgeInfo edge = _AddEdge (verticesToAdd[i], verticesToAdd[(i+1)%3]);
 			triangle.edges.Add(edge.GetSelfEdgeString());
 			edge.belongToTriangleIndex.Add (triangle.index);
-			verticesToAdd[i].belongToEdgeIndex.Add(edge.GetSelfEdgeString());
 		}
 		triangles.Add (triangle.index, triangle);
 		return triangle;
@@ -413,12 +406,16 @@ public class Cutoff : MonoBehaviour {
 		} else {
 			edge = edges[edgeString];
 		}
+
 		vertexa.belongToEdgeIndex.Add (edgeString);
 		vertexb.belongToEdgeIndex.Add (edgeString);
+		Debug.Log ("Add Edge");
+		Debug.Log (string.Format("index: {0}, edgeCount: {1}", vertexa.index.ToString(), vertexa.belongToEdgeIndex.Count.ToString()));
+		Debug.Log (string.Format("index: {0}, edgeCount: {1}", vertexb.index.ToString(), vertexb.belongToEdgeIndex.Count.ToString()));
 		return edge;
 	}
 
-	EdgeInfo AddEdge(VertexInfo vertexa, VertexInfo vertexb)
+	/*EdgeInfo AddEdge(VertexInfo vertexa, VertexInfo vertexb)
 	{
 		List<int> vertexaAdjancentVertices = vertexa.belongToEdgeIndex.Select (eIndex => edges [eIndex].GetOtherPoint (vertexa.index)).ToList();
 		List<int> vertexbAdjancentVertices = vertexb.belongToEdgeIndex.Select (eIndex => edges [eIndex].GetOtherPoint (vertexb.index)).ToList();
@@ -433,7 +430,7 @@ public class Cutoff : MonoBehaviour {
 		} else {
 			return _AddEdge(vertexa, vertexb);
 		}
-	}
+	}*/
 
 	string RemoveEdge(VertexInfo vertexa, VertexInfo vertexb)
 	{
@@ -549,15 +546,17 @@ public class Cutoff : MonoBehaviour {
 	{
 		Dictionary<string, EdgeInfo> newGeneratedEdges = new Dictionary<string, EdgeInfo> ();
 		if (vertices.Count == 2) {
-			EdgeInfo edge = AddEdge (vertices [0], vertices [1]);
+			EdgeInfo edge = _AddEdge (vertices [0], vertices [1]);
 			newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
+			Debug.DrawLine (victim.TransformPoint (vertices [0].vertex), victim.TransformPoint (vertices [1].vertex), Color.red, 1000);
 		} else if (vertices.Count == 3) {
 			for (int i = 0; i < 3; i++) {
-				EdgeInfo edge = AddEdge (vertices [i], vertices [(i + 1) % 3]);
+				EdgeInfo edge = _AddEdge (vertices [i], vertices [(i + 1) % 3]);
 				newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
+				Debug.DrawLine (victim.TransformPoint (vertices [i].vertex), victim.TransformPoint (vertices [(i+1)%3].vertex), Color.red, 1000);
 			}
 		} else if (vertices.Count > 3) {
-			List<VertexInfo> leftVertices = vertices.Take(vertices.Count/2).ToList();
+			/*List<VertexInfo> leftVertices = vertices.Take(vertices.Count/2).ToList();
 			List<VertexInfo> rightVertices = vertices.Skip(vertices.Count/2).ToList();
 			Dictionary<string, EdgeInfo> leftEdges = DelaunayDivideAndConquer(leftVertices);
 			foreach(KeyValuePair<string, EdgeInfo> pair in leftEdges)
@@ -579,18 +578,15 @@ public class Cutoff : MonoBehaviour {
 			{
 				bool A = false;
 				bool B = false;
-				EdgeInfo edge = AddEdge(L, R);
+				EdgeInfo edge = _AddEdge(L, R);
 				newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
+				Debug.DrawLine (victim.TransformPoint (L.vertex), victim.TransformPoint (R.vertex), Color.green, 1000);
 				VertexInfo R1 = FindPrevVertex(R, L, true);
 				if(IsRightOfVector(R, L, R1))
 				{
 					VertexInfo R2 = FindPrevVertex(R, R1, true);
 					while(!TriangleInfo.IsAPointOutsideTrianglesCircumcircle(R2.vertex, R1.vertex, L.vertex, R.vertex))
 					{
-						Debug.Log (L.vertex.ToString());
-						Debug.Log (R.vertex.ToString());
-						Debug.Log (R1.vertex.ToString());
-						Debug.Log (R2.vertex.ToString());
 						string edgeString = RemoveEdge(R, R1);
 						newGeneratedEdges.Remove(edgeString);
 						R1 = R2;
@@ -640,7 +636,7 @@ public class Cutoff : MonoBehaviour {
 			}
 			EdgeInfo upperEdge = AddEdge(upperBoundEdge.Key, upperBoundEdge.Value);
 			newGeneratedEdges.Add (upperEdge.GetSelfEdgeString(), upperEdge);
-
+			Debug.DrawLine (victim.TransformPoint (upperBoundEdge.Key.vertex), victim.TransformPoint (upperBoundEdge.Value.vertex), Color.green, 1000);*/
 		}
 		return newGeneratedEdges;
 	}
@@ -708,8 +704,6 @@ public class Cutoff : MonoBehaviour {
 	VertexInfo FindPrevVertex(VertexInfo vertexCenter, VertexInfo vertexEnd, bool isCW)
 	{
 		List<string> adjancentEdges = vertexCenter.belongToEdgeIndex;
-		//if (adjancentEdges.Count == 0)
-		//	return vertexCenter;
 		if (adjancentEdges.Count == 1)
 			return vertexEnd;
 		List<string> rightEdges = adjancentEdges.Where (e => Vector3.Dot (Vector3.Cross (vertexEnd.vertex - vertexCenter.vertex, vertices [edges[e].GetOtherPoint (vertexCenter.index)].vertex - vertexCenter.vertex), cutPlane.normal) > 0).ToList();
@@ -774,7 +768,7 @@ public class Cutoff : MonoBehaviour {
 			RemoveEdge(vertices[edge.vertexAIndex], vertices[edge.vertexBIndex]);
 		}
 
-		EdgeInfo newEdge = AddEdge (vertexa, vertexb);
+		EdgeInfo newEdge = _AddEdge (vertexa, vertexb);
 		newEdge.isConstraintEdge = true;
 
 		FindContourMeshDelaunay (leftVertices);
