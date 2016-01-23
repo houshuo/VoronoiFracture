@@ -548,7 +548,6 @@ public class Cutoff : MonoBehaviour {
 
 		} else if (vertices.Count == 3) {
 			for (int i = 0; i < 3; i++) {
-				Debug.Log (victim.TransformPoint(vertices [i].vertex).ToString());
 				EdgeInfo edge = _AddEdge (vertices [i], vertices [(i + 1) % 3]);
 				newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
 			}
@@ -578,8 +577,7 @@ public class Cutoff : MonoBehaviour {
 				bool A = false;
 				bool B = false;
 				EdgeInfo edge = _AddEdge(L, R);
-				//if(newGeneratedEdges.ContainsKey(edge.GetSelfEdgeString()))
-				//	Debug.DrawLine(victim.TransformPoint(this.vertices[edge.vertexAIndex].vertex), victim.TransformPoint(this.vertices[edge.vertexBIndex].vertex), Color.blue, 1000);
+
 				newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
 				Debug.DrawLine (victim.TransformPoint (L.vertex), victim.TransformPoint (R.vertex), Color.green, 1000);
 				VertexInfo R1 = FindPrevVertex(R, L, true);
@@ -618,11 +616,11 @@ public class Cutoff : MonoBehaviour {
 					B = true;
 				}
 
-				if(A)
+				if(B)
 				{
 					L = L1;
 				}
-				else if(B)
+				else if(A)
 				{
 					R = R1;
 				}
