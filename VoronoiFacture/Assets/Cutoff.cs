@@ -8,7 +8,7 @@ public class Cutoff : MonoBehaviour {
 
 	public Transform victim;
 	MeshFilter _meshFilter;
-	public float epslion = 0.0001f;
+	static float epslion = 0.0001f;
 	public GameObject newMeshPrefab;
 
 	private Plane cutPlane;
@@ -101,8 +101,10 @@ public class Cutoff : MonoBehaviour {
 		public int index;
 		public List<string> edges;
 		public List<int> vertices;
-		public static bool IsAPointInsideTrianglesCircumcircle(Vector3 point, Vector3 vertexA, Vector3 vertexB, Vector3 vertexC)
+		public static bool IsAPointOutsideTrianglesCircumcircle(Vector3 point, Vector3 vertexA, Vector3 vertexB, Vector3 vertexC)
 		{
+			if ((point - vertexA).magnitude < epslion || (point - vertexB).magnitude < epslion || (point - vertexC).magnitude < epslion)
+				return true;
 			Vector3 edgeAB = vertexA - vertexB;
 			Vector3 edgeBC = vertexB - vertexC;
 			Vector3 edgeCA = vertexC - vertexA;
@@ -114,8 +116,7 @@ public class Cutoff : MonoBehaviour {
 			float gamma = Vector3.Dot(edgeAB, edgeAB) * Vector3.Dot(edgeCA, -1 * edgeBC) / (2 * denominator * denominator);
 			
 			Vector3 center = vertexA * alpha + vertexB * beta + vertexC * gamma;
-			
-			return (point - center).magnitude < radius;
+			return (point - center).magnitude > radius;
 		}
 	}
 
@@ -439,12 +440,14 @@ public class Cutoff : MonoBehaviour {
 		string edgeString = EdgeInfo.GetEdgeString(vertexa.index, vertexb.index);
 		if (edges.ContainsKey (edgeString)) {
 			EdgeInfo edge = edges[edgeString];
-			foreach(int triangle in edge.belongToTriangleIndex)
+			List<int> belongToTriangleIndex = edge.belongToTriangleIndex;
+			edge.belongToTriangleIndex = new List<int> ();
+			for(int i = 0; i < belongToTriangleIndex.Count; i++)
 			{
+				int triangle = belongToTriangleIndex[i];
 				RemoveTriangle(triangles[triangle]);
 			}
-
-			vertexa.belongToEdgeIndex.Remove(edgeString);
+			vertexa.belongToEdgeIndex.Remove (edgeString);
 			vertexb.belongToEdgeIndex.Remove (edgeString);
 
 			edges.Remove (edgeString);
@@ -582,9 +585,12 @@ public class Cutoff : MonoBehaviour {
 				if(IsRightOfVector(R, L, R1))
 				{
 					VertexInfo R2 = FindPrevVertex(R, R1, true);
-//					Debug.Log (TriangleInfo.IsAPointInsideTrianglesCircumcircle(R2.vertex, R1.vertex, L.vertex, R.vertex).ToString());
-					while(!TriangleInfo.IsAPointInsideTrianglesCircumcircle(R2.vertex, R1.vertex, L.vertex, R.vertex))
+					while(!TriangleInfo.IsAPointOutsideTrianglesCircumcircle(R2.vertex, R1.vertex, L.vertex, R.vertex))
 					{
+						Debug.Log (L.vertex.ToString());
+						Debug.Log (R.vertex.ToString());
+						Debug.Log (R1.vertex.ToString());
+						Debug.Log (R2.vertex.ToString());
 						string edgeString = RemoveEdge(R, R1);
 						newGeneratedEdges.Remove(edgeString);
 						R1 = R2;
@@ -600,7 +606,7 @@ public class Cutoff : MonoBehaviour {
 				if(IsRightOfVector(R, L, L1))
 				{
 					VertexInfo L2 = FindPrevVertex(L, L1, false);
-					while(!TriangleInfo.IsAPointInsideTrianglesCircumcircle(L2.vertex, L1.vertex, L.vertex, R.vertex))
+					while(!TriangleInfo.IsAPointOutsideTrianglesCircumcircle(L2.vertex, L1.vertex, L.vertex, R.vertex))
 					{
 						string edgeString = RemoveEdge(L, L1);
 						newGeneratedEdges.Remove(edgeString);
@@ -621,7 +627,7 @@ public class Cutoff : MonoBehaviour {
 				{
 					R = R1;
 				}
-				else if(TriangleInfo.IsAPointInsideTrianglesCircumcircle(L1.vertex, L.vertex, R.vertex, R1.vertex))
+				else if(TriangleInfo.IsAPointOutsideTrianglesCircumcircle(L1.vertex, L.vertex, R.vertex, R1.vertex))
 				{
 					R = R1;
 				}
@@ -702,6 +708,8 @@ public class Cutoff : MonoBehaviour {
 	VertexInfo FindPrevVertex(VertexInfo vertexCenter, VertexInfo vertexEnd, bool isCW)
 	{
 		List<string> adjancentEdges = vertexCenter.belongToEdgeIndex;
+		//if (adjancentEdges.Count == 0)
+		//	return vertexCenter;
 		if (adjancentEdges.Count == 1)
 			return vertexEnd;
 		List<string> rightEdges = adjancentEdges.Where (e => Vector3.Dot (Vector3.Cross (vertexEnd.vertex - vertexCenter.vertex, vertices [edges[e].GetOtherPoint (vertexCenter.index)].vertex - vertexCenter.vertex), cutPlane.normal) > 0).ToList();
