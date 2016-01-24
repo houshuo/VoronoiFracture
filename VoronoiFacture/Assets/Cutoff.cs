@@ -546,13 +546,11 @@ public class Cutoff : MonoBehaviour {
 		if (verticesList.Count == 2) {
 			EdgeInfo edge = _AddEdge (verticesList [0], verticesList [1]);
 			newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
-			//Debug.DrawLine (victim.TransformPoint (verticesList [0].vertex), victim.TransformPoint (verticesList [1].vertex), Color.blue, 1000);
 
 		} else if (verticesList.Count == 3) {
 			for (int i = 0; i < 3; i++) {
 				EdgeInfo edge = _AddEdge (verticesList [i], verticesList [(i + 1) % 3]);
 				newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
-				//Debug.DrawLine (victim.TransformPoint (verticesList [i].vertex), victim.TransformPoint (verticesList [(i+1)%3].vertex), Color.blue, 1000);
 			}
 		} else if (verticesList.Count > 3) {
 			List<VertexInfo> leftVertices = verticesList.Take(verticesList.Count/2).ToList();
@@ -563,12 +561,12 @@ public class Cutoff : MonoBehaviour {
 			KeyValuePair<VertexInfo, VertexInfo> lowBoundEdge = FindHullEdge(leftVertices, leftEdges, rightVertices, rightEdges, false);
 			KeyValuePair<VertexInfo, VertexInfo> upperBoundEdge = FindHullEdge(leftVertices, leftEdges, rightVertices, rightEdges, true);
 
-			//Debug.DrawLine (victim.TransformPoint (upperBoundEdge.Key.vertex), victim.TransformPoint (upperBoundEdge.Value.vertex), Color.magenta, 1000);
 			VertexInfo L = lowBoundEdge.Key;
 			VertexInfo R = lowBoundEdge.Value;
-			do
+			while(lowBoundEdge.Key != upperBoundEdge.Key && lowBoundEdge.Value != upperBoundEdge.Value)
 			{
-
+				bool A = false;
+				bool B = false;
 				EdgeInfo edge = _AddEdge(L, R);	
 				newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
 				Debug.DrawLine(victim.TransformPoint(L.vertex), victim.TransformPoint(R.vertex), Color.yellow, 1000);
@@ -578,7 +576,6 @@ public class Cutoff : MonoBehaviour {
 
 				while(IsRightOfVector(R, L, R1))
 				{
-					Debug.Log ("R1 is right");
 					VertexInfo R2 = FindPrevVertex(R, R1, true, rightEdges);
 					if(!TriangleInfo.IsAPointOutsideTrianglesCircumcircle(R2.vertex, R1.vertex, L.vertex, R.vertex))
 					{
@@ -589,7 +586,6 @@ public class Cutoff : MonoBehaviour {
 					}
 					else
 					{
-						Debug.Log ("find right candidate");
 						candidateR = R1;
 						break;
 					}
@@ -600,7 +596,6 @@ public class Cutoff : MonoBehaviour {
 				VertexInfo L1 = FindPrevVertex(L, R, false, leftEdges);
 				while(IsLeftOfVector(L, R, L1))
 				{
-					Debug.Log ("L1 is right");
 					VertexInfo L2 = FindPrevVertex(L, L1, false, leftEdges);
 					if(!TriangleInfo.IsAPointOutsideTrianglesCircumcircle(L2.vertex, L1.vertex, L.vertex, R.vertex))
 					{
@@ -611,7 +606,6 @@ public class Cutoff : MonoBehaviour {
 					}
 					else
 					{
-						Debug.Log ("find left candidate");
 						candidateL = L1;
 						break;
 					}
@@ -627,21 +621,24 @@ public class Cutoff : MonoBehaviour {
 
 				lowBoundEdge = new KeyValuePair<VertexInfo, VertexInfo>(L, R);
 			}
-			while(lowBoundEdge.Key != upperBoundEdge.Key && lowBoundEdge.Value != upperBoundEdge.Value);
+
 			EdgeInfo upperEdge = _AddEdge(upperBoundEdge.Key, upperBoundEdge.Value);
 			newGeneratedEdges.Add (upperEdge.GetSelfEdgeString(), upperEdge);
+			Debug.DrawLine(victim.TransformPoint(upperBoundEdge.Key.vertex), victim.TransformPoint(upperBoundEdge.Value.vertex), Color.yellow, 1000);
 
 			foreach(KeyValuePair<string, EdgeInfo> pair in leftEdges)
 			{
-				//Debug.DrawLine (victim.TransformPoint (vertices[pair.Value.vertexAIndex].vertex), victim.TransformPoint (vertices[pair.Value.vertexBIndex].vertex), Color.blue, 1000);
+				Debug.DrawLine (victim.TransformPoint (vertices[pair.Value.vertexAIndex].vertex), victim.TransformPoint (vertices[pair.Value.vertexBIndex].vertex), Color.blue, 1000);
 				newGeneratedEdges.Add (pair.Key, pair.Value);
 			}
 			
 			foreach(KeyValuePair<string, EdgeInfo> pair in rightEdges)
 			{
-				//Debug.DrawLine (victim.TransformPoint (vertices[pair.Value.vertexAIndex].vertex), victim.TransformPoint (vertices[pair.Value.vertexBIndex].vertex), Color.red, 1000);
+				Debug.DrawLine (victim.TransformPoint (vertices[pair.Value.vertexAIndex].vertex), victim.TransformPoint (vertices[pair.Value.vertexBIndex].vertex), Color.red, 1000);
 				newGeneratedEdges.Add (pair.Key, pair.Value);
 			}
+
+			throw new Exception("Stop");
 
 		}
 		return newGeneratedEdges;
