@@ -556,14 +556,14 @@ public class Cutoff : MonoBehaviour {
 				newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
 			}
 		} else if (verticesList.Count > 3) {
-			List<VertexInfo> leftVertices = verticesList.Take(vertices.Count/2).ToList();
-			List<VertexInfo> rightVertices = verticesList.Skip(vertices.Count/2).ToList();
+			List<VertexInfo> leftVertices = verticesList.Take(verticesList.Count/2).ToList();
+			List<VertexInfo> rightVertices = verticesList.Skip(verticesList.Count/2).ToList();
 			Dictionary<string, EdgeInfo> leftEdges = DelaunayDivideAndConquer(leftVertices);
 			Dictionary<string, EdgeInfo> rightEdges = DelaunayDivideAndConquer(rightVertices);
 
 
 
-			/*KeyValuePair<VertexInfo, VertexInfo> lowBoundEdge = FindHullEdge(leftVertices, leftEdges, rightVertices, rightEdges, false);
+			KeyValuePair<VertexInfo, VertexInfo> lowBoundEdge = FindHullEdge(leftVertices, leftEdges, rightVertices, rightEdges, false);
 			KeyValuePair<VertexInfo, VertexInfo> upperBoundEdge = FindHullEdge(leftVertices, leftEdges, rightVertices, rightEdges, true);
 
 			VertexInfo L = lowBoundEdge.Key;
@@ -641,7 +641,7 @@ public class Cutoff : MonoBehaviour {
 				Debug.DrawLine (victim.TransformPoint (vertices[pair.Value.vertexAIndex].vertex), victim.TransformPoint (vertices[pair.Value.vertexBIndex].vertex), Color.red, 1000);
 				newGeneratedEdges.Add (pair.Key, pair.Value);
 			}
-			*/
+
 		}
 		return newGeneratedEdges;
 	}
@@ -653,24 +653,27 @@ public class Cutoff : MonoBehaviour {
 		VertexInfo Z;
 		VertexInfo Z_;
 		VertexInfo Z__;
+		Dictionary<string, EdgeInfo> inputEdge;
 		if (isUppderBound) {
+			inputEdge = leftEdges;
 			X = leftVertices [leftVertices.Count - 1];
 			Y = rightVertices [0];
 			Z = FirstNextPointOnContour (Y, rightVertices);
 			Z_ = FirstNextPointOnContour (X, leftVertices);
-			Z__ = FindPrevVertex (X, Z_, true);
+			Z__ = FindPrevVertex (X, Z_, true, inputEdge);
 		} else {
+			inputEdge = rightEdges;
 			X = rightVertices [0];
 			Y = leftVertices [leftVertices.Count - 1];
 			Z = FirstNextPointOnContour (Y, leftVertices);
 			Z_ = FirstNextPointOnContour (X, rightVertices);
-			Z__ = FindPrevVertex (X, Z_, true);
+			Z__ = FindPrevVertex (X, Z_, true, inputEdge);
 		}
 		while (true) {
 			if(IsRightOfVector(X, Y, Z))
 			{
 				VertexInfo tmp = Z;
-				Z = FindPrevVertex(Z, Y, false);
+				Z = FindPrevVertex(Z, Y, false, inputEdge);
 				Y = tmp;
 			}
 			else
@@ -678,7 +681,7 @@ public class Cutoff : MonoBehaviour {
 				if(IsRightOfVector(X, Y, Z__))
 				{
 					VertexInfo tmp = Z__;
-					Z__ = FindPrevVertex(Z__, X, true);
+					Z__ = FindPrevVertex(Z__, X, true, inputEdge);
 					X = tmp;
 				}
 				else
@@ -706,9 +709,9 @@ public class Cutoff : MonoBehaviour {
 		return Vector3.Dot (Vector3.Cross (vertexEnd.vertex - vertexCenter.vertex, vertex.vertex - vertexCenter.vertex), cutPlane.normal) > epslion;
 	}
 
-	VertexInfo FindPrevVertex(VertexInfo vertexCenter, VertexInfo vertexEnd, bool isCW)
+	VertexInfo FindPrevVertex(VertexInfo vertexCenter, VertexInfo vertexEnd, bool isCW, Dictionary<string, EdgeInfo> inputEdges)
 	{
-		List<string> adjancentEdges = vertexCenter.belongToEdgeIndex;
+		List<string> adjancentEdges = vertexCenter.belongToEdgeIndex.Where(s => inputEdges.ContainsKey(s)).ToList();
 
 		if (adjancentEdges.Count == 1)
 			return vertexEnd;
