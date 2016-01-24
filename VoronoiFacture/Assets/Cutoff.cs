@@ -17,6 +17,8 @@ public class Cutoff : MonoBehaviour {
 	private Dictionary<int, TriangleInfo> triangles;
 	private List<VertexInfo> contourVertices;
 
+	private int iterationNum = 0;
+
 	class VertexInfo{
 		public static int nextIndex = 0;
 		public Vector3 vertex;
@@ -119,6 +121,7 @@ public class Cutoff : MonoBehaviour {
 
 	void Start()
 	{
+		iterationNum = 0;
 		_meshFilter = victim.gameObject.GetComponent<MeshFilter> ();
 		Cut ();
 	}
@@ -536,7 +539,7 @@ public class Cutoff : MonoBehaviour {
 
 		Dictionary<string, EdgeInfo> newEdges = DelaunayDivideAndConquer (contour);
 		foreach (EdgeInfo e in newEdges.Values) {
-			//Debug.DrawLine(victim.TransformPoint(vertices[e.vertexAIndex].vertex), victim.TransformPoint(vertices[e.vertexBIndex].vertex), Color.red, 10000);
+			Debug.DrawLine(victim.TransformPoint(vertices[e.vertexAIndex].vertex), victim.TransformPoint(vertices[e.vertexBIndex].vertex), Color.red, 10000);
 		}
 	}
 	
@@ -574,7 +577,6 @@ public class Cutoff : MonoBehaviour {
 			VertexInfo R = lowBoundEdge.Value;
 			while(lowBoundEdge.Key != upperBoundEdge.Key && lowBoundEdge.Value != upperBoundEdge.Value)
 			{
-				Debug.Log ("==================");
 				EdgeInfo edge = _AddEdge(L, R);	
 				newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
 				Debug.DrawLine(victim.TransformPoint(L.vertex), victim.TransformPoint(R.vertex), Color.yellow, 1000);
@@ -586,10 +588,10 @@ public class Cutoff : MonoBehaviour {
 				{
 					VertexInfo R2 = FindPrevVertex(R, R1, true, rightEdges);
 					
-					if(IsRightOfVector(R, L, R2) && !TriangleInfo.IsAPointOutsideTrianglesCircumcircle(R2.vertex, R1.vertex, L.vertex, R.vertex))
+					if(!TriangleInfo.IsAPointOutsideTrianglesCircumcircle(R2.vertex, R1.vertex, L.vertex, R.vertex))
 					{
 						string edgeString = RemoveEdge(R, R1);
-						newGeneratedEdges.Remove(edgeString);
+						rightEdges.Remove(edgeString);
 						Debug.DrawLine (victim.TransformPoint (R.vertex), victim.TransformPoint (R1.vertex), Color.gray, 1000);
 						R1 = R2;
 					}
@@ -606,10 +608,10 @@ public class Cutoff : MonoBehaviour {
 				while(IsLeftOfVector(L, R, L1))
 				{
 					VertexInfo L2 = FindPrevVertex(L, L1, false, leftEdges);
-					if(IsLeftOfVector(L, R, L2) && !TriangleInfo.IsAPointOutsideTrianglesCircumcircle(L2.vertex, L1.vertex, L.vertex, R.vertex))
+					if(!TriangleInfo.IsAPointOutsideTrianglesCircumcircle(L2.vertex, L1.vertex, L.vertex, R.vertex))
 					{
 						string edgeString = RemoveEdge(L, L1);
-						newGeneratedEdges.Remove(edgeString);
+						leftEdges.Remove(edgeString);
 						Debug.DrawLine (victim.TransformPoint (L.vertex), victim.TransformPoint (L1.vertex), Color.gray, 1000);
 						L1 = L2;
 					}
@@ -644,8 +646,9 @@ public class Cutoff : MonoBehaviour {
 			{
 				newGeneratedEdges.Add (pair.Key, pair.Value);
 			}
-
-			throw new Exception("Stop");
+			iterationNum++;
+			//if(iterationNum == 3)
+			//	throw new Exception("Stop");
 
 		}
 		return newGeneratedEdges;
