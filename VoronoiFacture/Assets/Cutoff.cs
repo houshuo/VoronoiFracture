@@ -558,6 +558,15 @@ public class Cutoff : MonoBehaviour {
 			Dictionary<string, EdgeInfo> leftEdges = DelaunayDivideAndConquer(leftVertices);
 			Dictionary<string, EdgeInfo> rightEdges = DelaunayDivideAndConquer(rightVertices);
 
+			foreach(KeyValuePair<string, EdgeInfo> pair in leftEdges)
+			{
+				Debug.DrawLine (victim.TransformPoint (vertices[pair.Value.vertexAIndex].vertex), victim.TransformPoint (vertices[pair.Value.vertexBIndex].vertex), Color.blue, 1000);
+			}
+			foreach(KeyValuePair<string, EdgeInfo> pair in rightEdges)
+			{
+				Debug.DrawLine (victim.TransformPoint (vertices[pair.Value.vertexAIndex].vertex), victim.TransformPoint (vertices[pair.Value.vertexBIndex].vertex), Color.red, 1000);
+			}
+
 			KeyValuePair<VertexInfo, VertexInfo> lowBoundEdge = FindHullEdge(leftVertices, leftEdges, rightVertices, rightEdges, false);
 			KeyValuePair<VertexInfo, VertexInfo> upperBoundEdge = FindHullEdge(leftVertices, leftEdges, rightVertices, rightEdges, true);
 
@@ -565,8 +574,7 @@ public class Cutoff : MonoBehaviour {
 			VertexInfo R = lowBoundEdge.Value;
 			while(lowBoundEdge.Key != upperBoundEdge.Key && lowBoundEdge.Value != upperBoundEdge.Value)
 			{
-				bool A = false;
-				bool B = false;
+				Debug.Log ("==================");
 				EdgeInfo edge = _AddEdge(L, R);	
 				newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
 				Debug.DrawLine(victim.TransformPoint(L.vertex), victim.TransformPoint(R.vertex), Color.yellow, 1000);
@@ -577,7 +585,8 @@ public class Cutoff : MonoBehaviour {
 				while(IsRightOfVector(R, L, R1))
 				{
 					VertexInfo R2 = FindPrevVertex(R, R1, true, rightEdges);
-					if(!TriangleInfo.IsAPointOutsideTrianglesCircumcircle(R2.vertex, R1.vertex, L.vertex, R.vertex))
+					
+					if(IsRightOfVector(R, L, R2) && !TriangleInfo.IsAPointOutsideTrianglesCircumcircle(R2.vertex, R1.vertex, L.vertex, R.vertex))
 					{
 						string edgeString = RemoveEdge(R, R1);
 						newGeneratedEdges.Remove(edgeString);
@@ -597,7 +606,7 @@ public class Cutoff : MonoBehaviour {
 				while(IsLeftOfVector(L, R, L1))
 				{
 					VertexInfo L2 = FindPrevVertex(L, L1, false, leftEdges);
-					if(!TriangleInfo.IsAPointOutsideTrianglesCircumcircle(L2.vertex, L1.vertex, L.vertex, R.vertex))
+					if(IsLeftOfVector(L, R, L2) && !TriangleInfo.IsAPointOutsideTrianglesCircumcircle(L2.vertex, L1.vertex, L.vertex, R.vertex))
 					{
 						string edgeString = RemoveEdge(L, L1);
 						newGeneratedEdges.Remove(edgeString);
@@ -624,17 +633,15 @@ public class Cutoff : MonoBehaviour {
 
 			EdgeInfo upperEdge = _AddEdge(upperBoundEdge.Key, upperBoundEdge.Value);
 			newGeneratedEdges.Add (upperEdge.GetSelfEdgeString(), upperEdge);
-			Debug.DrawLine(victim.TransformPoint(upperBoundEdge.Key.vertex), victim.TransformPoint(upperBoundEdge.Value.vertex), Color.yellow, 1000);
+			Debug.DrawLine(victim.TransformPoint(upperBoundEdge.Key.vertex), victim.TransformPoint(upperBoundEdge.Value.vertex), Color.magenta, 1000);
 
 			foreach(KeyValuePair<string, EdgeInfo> pair in leftEdges)
 			{
-				Debug.DrawLine (victim.TransformPoint (vertices[pair.Value.vertexAIndex].vertex), victim.TransformPoint (vertices[pair.Value.vertexBIndex].vertex), Color.blue, 1000);
 				newGeneratedEdges.Add (pair.Key, pair.Value);
 			}
 			
 			foreach(KeyValuePair<string, EdgeInfo> pair in rightEdges)
 			{
-				Debug.DrawLine (victim.TransformPoint (vertices[pair.Value.vertexAIndex].vertex), victim.TransformPoint (vertices[pair.Value.vertexBIndex].vertex), Color.red, 1000);
 				newGeneratedEdges.Add (pair.Key, pair.Value);
 			}
 
