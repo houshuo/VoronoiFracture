@@ -115,7 +115,7 @@ public class Cutoff : MonoBehaviour {
 			float gamma = Vector3.Dot(edgeAB, edgeAB) * Vector3.Dot(edgeCA, -1 * edgeBC) / (2 * denominator * denominator);
 			
 			Vector3 center = vertexA * alpha + vertexB * beta + vertexC * gamma;
-			return (point - center).magnitude > radius;
+			return (point - center).magnitude > radius - epslion;
 		}
 	}
 
@@ -574,7 +574,7 @@ public class Cutoff : MonoBehaviour {
 
 			EdgeInfo lowEdge = _AddEdge(lowBoundEdge.Key, lowBoundEdge.Value);
 			newGeneratedEdges.Add (lowEdge.GetSelfEdgeString(), lowEdge);
-			Debug.DrawLine(victim.TransformPoint(lowBoundEdge.Key.vertex), victim.TransformPoint(lowBoundEdge.Value.vertex), Color.yellow, 1000);
+			Debug.DrawLine(victim.TransformPoint(lowBoundEdge.Key.vertex), victim.TransformPoint(lowBoundEdge.Value.vertex), Color.magenta, 1000);
 
 			VertexInfo L = lowBoundEdge.Key;
 			VertexInfo R = lowBoundEdge.Value;
@@ -641,8 +641,18 @@ public class Cutoff : MonoBehaviour {
 				}
 
 				EdgeInfo edge = _AddEdge(L, R);	
-				//if(newGeneratedEdges.ContainsKey(edge.GetSelfEdgeString()))
+				if(newGeneratedEdges.ContainsKey(edge.GetSelfEdgeString()))
+				{
+					//Debug.DrawLine(victim.TransformPoint(L.vertex), victim.TransformPoint(R.vertex), Color.cyan, 1000);
+					Debug.DrawLine(victim.TransformPoint(L.vertex), victim.TransformPoint(R.vertex), Color.cyan, 1000);
+					Debug.Log (L.index.ToString());
+					Debug.Log(upperBoundEdge.Key.index.ToString());
+					Debug.Log (R.index.ToString());
+					Debug.Log (upperBoundEdge.Value.index.ToString());
+				}
+				else
 				   Debug.DrawLine(victim.TransformPoint(L.vertex), victim.TransformPoint(R.vertex), Color.magenta, 1000);
+
 				newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
 
 
@@ -751,7 +761,9 @@ public class Cutoff : MonoBehaviour {
 			return vertices[edges[adjancentEdges[0]].GetOtherPoint(vertexCenter.index)];
 
 		List<string> rightEdges = adjancentEdges.Where (e =>  IsRightOfVector(vertexCenter, vertexEnd, vertices[edges[e].GetOtherPoint(vertexCenter.index)])).ToList();
+		List<string> rightExceptEdges = adjancentEdges.Except (rightEdges).ToList ();
 		List<string> leftEdges = adjancentEdges.Where (e =>  IsLeftOfVector(vertexCenter, vertexEnd, vertices[edges[e].GetOtherPoint(vertexCenter.index)])).ToList();
+		List<string> leftExceptEdges = adjancentEdges.Except (leftEdges).ToList ();
 		string nextEdgeString;
 
 		Func<string, float> calculateDot = eString => {EdgeInfo e = edges[eString]; return Vector3.Dot((vertexEnd.vertex - vertexCenter.vertex).normalized, (vertices [e.GetOtherPoint (vertexCenter.index)].vertex - vertexCenter.vertex).normalized);};
@@ -762,7 +774,7 @@ public class Cutoff : MonoBehaviour {
 			}
 			else
 			{
-				nextEdgeString = leftEdges.OrderBy(calculateDot).First();
+				nextEdgeString = rightExceptEdges.OrderBy(calculateDot).First();
 			}
 		} else {
 			if(leftEdges.Count>0)
@@ -771,7 +783,7 @@ public class Cutoff : MonoBehaviour {
 			}
 			else
 			{
-				nextEdgeString = rightEdges.OrderBy(calculateDot).First();
+				nextEdgeString = leftExceptEdges.OrderBy(calculateDot).First();
 			}
 		}
 
