@@ -121,7 +121,6 @@ public class Cutoff : MonoBehaviour {
 
 	void Start()
 	{
-		iterationNum = 0;
 		_meshFilter = victim.gameObject.GetComponent<MeshFilter> ();
 		Cut ();
 	}
@@ -130,7 +129,7 @@ public class Cutoff : MonoBehaviour {
 	{
 		//initialize public variables
 		vertices = new Dictionary<int, VertexInfo> ();
-		edges = new Dictionary<string, EdgeInfo> ();
+		edges = new Dictionary<string, EdgeInfo> (StringComparer.Ordinal);
 		triangles = new Dictionary<int, TriangleInfo> ();
 		//Get Cutplane
 		Vector3 planeNormalInSubspace = victim.InverseTransformDirection (transform.forward);
@@ -147,7 +146,7 @@ public class Cutoff : MonoBehaviour {
 		List< TriangleInfo> rightTriangles = new List<TriangleInfo>();*/
 
 		//New Generated Points
-		Dictionary<string, VertexInfo> newGeneratedPoints = new Dictionary<string, VertexInfo> ();
+		Dictionary<string, VertexInfo> newGeneratedPoints = new Dictionary<string, VertexInfo> (StringComparer.Ordinal);
 
 		//Get Mesh Info
 		Mesh _mesh = _meshFilter.mesh;
@@ -539,13 +538,13 @@ public class Cutoff : MonoBehaviour {
 
 		Dictionary<string, EdgeInfo> newEdges = DelaunayDivideAndConquer (contour);
 		foreach (EdgeInfo e in newEdges.Values) {
-			Debug.DrawLine(victim.TransformPoint(vertices[e.vertexAIndex].vertex), victim.TransformPoint(vertices[e.vertexBIndex].vertex), Color.red, 10000);
+			//Debug.DrawLine(victim.TransformPoint(vertices[e.vertexAIndex].vertex), victim.TransformPoint(vertices[e.vertexBIndex].vertex), Color.red, 10000);
 		}
 	}
 	
 	Dictionary<string, EdgeInfo>  DelaunayDivideAndConquer(List<VertexInfo> verticesList)
 	{
-		Dictionary<string, EdgeInfo> newGeneratedEdges = new Dictionary<string, EdgeInfo> ();
+		Dictionary<string, EdgeInfo> newGeneratedEdges = new Dictionary<string, EdgeInfo> (StringComparer.Ordinal);
 		if (verticesList.Count == 2) {
 			EdgeInfo edge = _AddEdge (verticesList [0], verticesList [1]);
 			newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
@@ -556,7 +555,6 @@ public class Cutoff : MonoBehaviour {
 				newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
 			}
 		} else if (verticesList.Count > 3) {
-			Debug.Log ("=============");
 			List<VertexInfo> leftVertices = verticesList.Take(verticesList.Count/2).ToList();
 			List<VertexInfo> rightVertices = verticesList.Skip(verticesList.Count/2).ToList();
 			Dictionary<string, EdgeInfo> leftEdges = DelaunayDivideAndConquer(leftVertices);
@@ -578,15 +576,12 @@ public class Cutoff : MonoBehaviour {
 			newGeneratedEdges.Add (lowEdge.GetSelfEdgeString(), lowEdge);
 			Debug.DrawLine(victim.TransformPoint(lowBoundEdge.Key.vertex), victim.TransformPoint(lowBoundEdge.Value.vertex), Color.yellow, 1000);
 
-			EdgeInfo upEdge = _AddEdge(upperBoundEdge.Key, upperBoundEdge.Value);
-			newGeneratedEdges.Add (upEdge.GetSelfEdgeString(), upEdge);
-			Debug.DrawLine(victim.TransformPoint(upperBoundEdge.Key.vertex), victim.TransformPoint(upperBoundEdge.Value.vertex), Color.yellow, 1000);
-
 			VertexInfo L = lowBoundEdge.Key;
 			VertexInfo R = lowBoundEdge.Value;
-			while(lowBoundEdge.Key != upperBoundEdge.Key && lowBoundEdge.Value != upperBoundEdge.Value)
+			int interIterationNum = 0;
+			while(!(lowBoundEdge.Key.index == upperBoundEdge.Key.index && lowBoundEdge.Value.index == upperBoundEdge.Value.index))
 			{
-
+				interIterationNum ++;
 
 				VertexInfo candidateR = R;
 				VertexInfo R1 = FindPrevVertex(R, L, true, rightEdges);
@@ -594,7 +589,6 @@ public class Cutoff : MonoBehaviour {
 				while(IsRightOfVector(R, L, R1))
 				{
 					VertexInfo R2 = FindPrevVertex(R, R1, true, rightEdges);
-					
 					if(!TriangleInfo.IsAPointOutsideTrianglesCircumcircle(R2.vertex, R1.vertex, L.vertex, R.vertex))
 					{
 						string edgeString = RemoveEdge(R, R1);
@@ -614,9 +608,9 @@ public class Cutoff : MonoBehaviour {
 				VertexInfo L1 = FindPrevVertex(L, R, false, leftEdges);
 				while(IsLeftOfVector(L, R, L1))
 				{
-					Debug.Log ("L1 is right");
 					VertexInfo L2 = FindPrevVertex(L, L1, false, leftEdges);
-					if(!TriangleInfo.IsAPointOutsideTrianglesCircumcircle(L2.vertex, L1.vertex, L.vertex, R.vertex))
+
+					if(!TriangleInfo.IsAPointOutsideTrianglesCircumcircle(victim.TransformPoint(L2.vertex), victim.TransformPoint(L1.vertex), victim.TransformPoint(L.vertex), victim.TransformPoint(R.vertex)))
 					{
 						string edgeString = RemoveEdge(L, L1);
 						leftEdges.Remove(edgeString);
@@ -625,12 +619,19 @@ public class Cutoff : MonoBehaviour {
 					}
 					else
 					{
-						Debug.Log ("Find L candidate");
 						candidateL = L1;
 						break;
 					}
 				}
-				if(TriangleInfo.IsAPointOutsideTrianglesCircumcircle(candidateL.vertex, L.vertex, R.vertex, candidateR.vertex))
+				if(R.index == candidateR.index)
+				{
+					L = candidateL;
+				}
+				else if(L.index == candidateL.index)
+				{
+					R = candidateR;
+				}
+				else if(TriangleInfo.IsAPointOutsideTrianglesCircumcircle(candidateL.vertex, L.vertex, R.vertex, candidateR.vertex))
 				{
 					R = candidateR;
 				}
@@ -640,8 +641,10 @@ public class Cutoff : MonoBehaviour {
 				}
 
 				EdgeInfo edge = _AddEdge(L, R);	
+				//if(newGeneratedEdges.ContainsKey(edge.GetSelfEdgeString()))
+				   Debug.DrawLine(victim.TransformPoint(L.vertex), victim.TransformPoint(R.vertex), Color.magenta, 1000);
 				newGeneratedEdges.Add (edge.GetSelfEdgeString(), edge);
-				Debug.DrawLine(victim.TransformPoint(L.vertex), victim.TransformPoint(R.vertex), Color.yellow, 1000);
+
 
 				lowBoundEdge = new KeyValuePair<VertexInfo, VertexInfo>(L, R);
 			}
@@ -656,8 +659,7 @@ public class Cutoff : MonoBehaviour {
 				newGeneratedEdges.Add (pair.Key, pair.Value);
 			}
 			iterationNum++;
-			//if(iterationNum == 2)
-			//	throw new Exception("Stop");
+
 
 		}
 		return newGeneratedEdges;
@@ -665,6 +667,8 @@ public class Cutoff : MonoBehaviour {
 
 	KeyValuePair<VertexInfo, VertexInfo> FindHullEdge(List<VertexInfo> leftVertices, Dictionary<string, EdgeInfo> leftEdges, List<VertexInfo> rightVertices, Dictionary<string, EdgeInfo> rightEdges, bool isUppderBound)
 	{
+		leftVertices = leftVertices.OrderBy(v=>victim.TransformPoint(v.vertex).x).ThenBy(v => victim.TransformPoint(v.vertex).y).ToList();
+		rightVertices = rightVertices.OrderBy(v=>victim.TransformPoint(v.vertex).x).ThenBy(v => victim.TransformPoint(v.vertex).y).ToList();
 		VertexInfo X;
 		VertexInfo Y;
 		VertexInfo Z;
@@ -689,7 +693,6 @@ public class Cutoff : MonoBehaviour {
 			Z_ = FirstNextPointOnContour (X, rightVertices);
 			Z__ = FindPrevVertex (X, Z_, true, XEdge);
 		}
-
 		while (true) {
 
 			if(IsRightOfVector(X, Y, Z))
@@ -744,10 +747,13 @@ public class Cutoff : MonoBehaviour {
 	VertexInfo FindPrevVertex(VertexInfo vertexCenter, VertexInfo vertexEnd, bool isCW, Dictionary<string, EdgeInfo> inputEdges)
 	{
 		List<string> adjancentEdges = vertexCenter.belongToEdgeIndex.Where(s => inputEdges.ContainsKey(s)).ToList();
+		if(adjancentEdges.Count == 1)
+			return vertices[edges[adjancentEdges[0]].GetOtherPoint(vertexCenter.index)];
 
 		List<string> rightEdges = adjancentEdges.Where (e =>  IsRightOfVector(vertexCenter, vertexEnd, vertices[edges[e].GetOtherPoint(vertexCenter.index)])).ToList();
-		List<string> leftEdges = adjancentEdges.Except (rightEdges).ToList ();
+		List<string> leftEdges = adjancentEdges.Where (e =>  IsLeftOfVector(vertexCenter, vertexEnd, vertices[edges[e].GetOtherPoint(vertexCenter.index)])).ToList();
 		string nextEdgeString;
+
 		Func<string, float> calculateDot = eString => {EdgeInfo e = edges[eString]; return Vector3.Dot((vertexEnd.vertex - vertexCenter.vertex).normalized, (vertices [e.GetOtherPoint (vertexCenter.index)].vertex - vertexCenter.vertex).normalized);};
 		if (isCW) {
 			if(rightEdges.Count>0)
